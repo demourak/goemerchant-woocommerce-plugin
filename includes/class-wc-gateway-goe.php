@@ -146,6 +146,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
             'cVV'          => $_POST['goe-card-cvc']
             );
+        // get customer billing information
+        $cust_info = array (
+            'ownerName' => $order->get_formatted_billing_full_name(),
+            'ownerCity' => $order->billing_city,
+            'ownerCountry' => $order->billing_country,
+            'ownerState' => $order->billing_state,
+            'ownerStreet' => $order->billing_address_1,
+            'ownerStreet2' => $order->billing_address_2,
+            'ownerZip' => $order->billing_postcode,
+            'ownerEmail' => $order->billing_email
+        );
         $this->gwid = $this->get_option('gwid'); // load gateway id from admin settings
         $this->pid  = $this->get_option('pid');  // load processor id
         $form = array( 
@@ -154,14 +165,24 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'transactionAmount' => $order->get_total(),
             );
         
-        $transactionData = array_merge($form, $cc);
+        $customer = array_merge($cc, $cust_info);
         
+        $transactionData = array_merge($form, $customer); // combine all into one array
+        check("Input: " . print_r($transactionData, true));
         $rgw->createSale(
                 $transactionData,
                 NULL,
                 NULL);
         
-        check(print_r($rgw->result, true));
+        check("Result: " . print_r($rgw->result, true));
+        
+        $error_msg = $this->get_error_string($rgw);
+        check("error_msg: $error_msg");
+        if ($error_msg) {
+            wc_add_notice( __('Payment error: ', 'woothemes') . $error_msg, 'error' );
+            return;
+        }
+        
         // Remove cart
         WC()->cart->empty_cart();
         
@@ -177,9 +198,28 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         return;
     }
     
-    function errors_and_validation(){
-        check('Failure function called.');
-        return;
+    /**
+     * 
+     * @param type $restGateway
+     * @return string|boolean Returns error string with line breaks if there is an error,
+     * otherwise returns false.
+     */
+    function get_error_string($restGateway){
+        $result = $restGateway->result;
+        $errorString = "";
+        if ($result["isError"] == TRUE) {
+            return "There was an error processing your request. Please try again later.";
+        }
+        
+        if ($result['validations']) {
+            $errorString .= "Could not process your order. Please correct the following errors: <br>";
+            foreach ($result["validations"] as $index => $vError) {
+                $errorString .= $vError['message'] . "<br>";
+            }
+            return $errorString;
+        }
+        
+        return FALSE; // no error
     }
     
     static function testGateway() {
