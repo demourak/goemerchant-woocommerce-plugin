@@ -360,7 +360,7 @@ class RestGateway{
         $jsondata = utf8_encode($jsondata);
         //DEBUG
         $jsondata = substr($jsondata, 9); // remove weird inner array
-        check( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
+        //check( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
         $curl_handle=curl_init();
         curl_setopt($curl_handle, CURLOPT_URL, $url);
         curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");

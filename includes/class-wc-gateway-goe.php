@@ -146,9 +146,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
             'cVV'          => $_POST['goe-card-cvc']
             );
+        $this->gwid = $this->get_option('gwid'); // load gateway id from admin settings
+        $this->pid  = $this->get_option('pid');  // load processor id
         $form = array( 
-            'merchantKey'       => "8854e919-b1a6-475c-803c-121489a35df2", 
-            'processorId'       => "74640",
+            'merchantKey'       => "$this->gwid", 
+            'processorId'       => "$this->pid",
             'transactionAmount' => $order->get_total(),
             );
         
@@ -156,8 +158,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         
         $rgw->createSale(
                 $transactionData,
-                'success',
-                'errors_and_validation');
+                NULL,
+                NULL);
         
         check(print_r($rgw->result, true));
         // Remove cart

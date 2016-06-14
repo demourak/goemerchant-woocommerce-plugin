@@ -48,7 +48,7 @@ and open the template in the editor.
 
         function success() {
             global $rgw;
-            echo "Success!<br/>\n";
+            echo "Success!<br/>";
             foreach ($rgw->result as $key => $value){
               echo $key . ' :: ' . $value . "<br/>\n";
             }
