@@ -1,7 +1,8 @@
 <?php
 
+require_once 'gateway.php';
 /**
- * bKash Class
+ * goe Class
  */
 class WC_Goe {
 

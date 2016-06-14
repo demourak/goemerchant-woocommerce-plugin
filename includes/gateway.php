@@ -14,7 +14,7 @@
         }
     }
 
-
+    require_once 'debug.php';
 class RestGateway{
     /**
     * RestGateway Class: A library of functions used to call the 1stPayBlaze web service.
@@ -353,10 +353,14 @@ class RestGateway{
             */
         try{
         if ($data == NULL){$data = array(); }
+        check("Request data: " . print_r($data, true));
         $url = $apiRequest;
         $this->result = array();
         $jsondata = json_encode(new Transaction($data),JSON_PRETTY_PRINT);
         $jsondata = utf8_encode($jsondata);
+        //DEBUG
+        $jsondata = substr($jsondata, 9); // remove weird inner array
+        check( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
         $curl_handle=curl_init();
         curl_setopt($curl_handle, CURLOPT_URL, $url);
         curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");

@@ -1,9 +1,12 @@
 <?php
 
+include_once 'debug.php';
+require_once 'gateway.php';
+
 /**
- * bKash Payment gateway
+ * goEmerchant Gateway, extending the WooCommerce class.
  *
- * @author Tareq Hasan
+ * @author Kevin DeMoura
  */
 class WC_Gateway_goe extends WC_Payment_Gateway {
 
@@ -129,37 +132,34 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * @return void
      */
     public function process_payment( $order_id ) {
-        global $debug;
-        require_once 'gateway.php';
+        
+        $rgw = new RestGateway();
 
         $order = wc_get_order( $order_id ); // object for woocommerce order
+        
+        //WC_Gateway_goe::testGateway();
        
-        
-        /*$form = array (
-            'merchantKey'       => $this->$settings['gwid'],
-            'processorId'       => $this->$settings['pid'],
-            'transactionAmount' => $order->$order_total,
-            'cardNumber'        => str_replace(array('-', ' '), '', $_POST['goe-card-number']), // from woocommerce default cc form
-            'cardExpMonth'      => substr($_POST['goe-card-expiry'], 0, 2),
-            'cardExpYear'       => substr($_POST['goe-card-expiry'], -2),
-            'cVV'               => $_POST['goe-card-cvc']
-        );*/
-        $form = array (
-            'merchantKey'       => "8854e919-b1a6-475c-803c-121489a35df2",
+        //format user cc input
+        $cc = array(
+            'cardNumber'   => str_replace(array('-', ' '), '', $_POST['goe-card-number']), 
+            'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
+            'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
+            'cVV'          => $_POST['goe-card-cvc']
+            );
+        $form = array( 
+            'merchantKey'       => "8854e919-b1a6-475c-803c-121489a35df2", 
             'processorId'       => "74640",
-            'transactionAmount' => "1.00",
-            'cardNumber'        => "4111111111111111", // from woocommerce default cc form
-            'cardExpMonth'      => "05",
-            'cardExpYear'       => "18",
-            'cVV'               => ""
-        );
-        $debug = print_r($form, true);
-        echo "<script>window.alert($debug); console.log($debug);</script>";
+            'transactionAmount' => $order->get_total(),
+            );
         
-        $RestGateway->createSale(
-                $form,
+        $transactionData = array_merge($form, $cc);
+        
+        $rgw->createSale(
+                $transactionData,
                 'success',
                 'errors_and_validation');
+        
+        check(print_r($rgw->result, true));
         // Remove cart
         WC()->cart->empty_cart();
         
@@ -171,17 +171,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     }
     
     function success(){
-        global $RestGateway;
-        //Insert success handler code here.
-        //See 'Handling Success'
-        echo "<h1> success function called. </h1>";
-        echo "<br>";
+        check('Success function called.');
+        return;
     }
     
     function errors_and_validation(){
-        global $RestGateway;
-        echo "<h1> Failure function called. </h1>";
-        echo "<br>";
+        check('Failure function called.');
+        return;
+    }
+    
+    static function testGateway() {
+        require_once 'test.php';
     }
 
 }
