@@ -353,7 +353,7 @@ class RestGateway{
             */
         try{
         if ($data == NULL){$data = array(); }
-        check("Request data: " . print_r($data, true));
+        //check("Request data: " . print_r($data, true));
         $url = $apiRequest;
         $this->result = array();
         $jsondata = json_encode(new Transaction($data),JSON_PRETTY_PRINT);

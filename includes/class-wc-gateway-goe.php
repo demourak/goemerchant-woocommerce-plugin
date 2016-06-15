@@ -91,7 +91,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * @return void
      */
     public function thankyou_page( $order_id ) {
-
+        /*
         if ( $this->instructions ) {
             echo wpautop( wptexturize( wp_kses_post( $this->instructions ) ) );
         }
@@ -100,7 +100,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
         if ( $order->has_status( 'on-hold' ) ) {
             WC_Goe::tranasaction_form( $order_id );
-        }
+        }*/
     }
 
     /**
@@ -199,6 +199,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     }
     
     /**
+     * Generates a string to show the customer if an error is encountered when
+     * processing with the given RestGateway object.
      * 
      * @param type $restGateway
      * @return string|boolean Returns error string with line breaks if there is an error,
@@ -206,9 +208,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      */
     function get_error_string($restGateway){
         $result = $restGateway->result;
+        $code   = $restGateway->status;
+        check("Status: $code");
         $errorString = "";
         if ($result["isError"] == TRUE) {
-            return "There was an error processing your request. Please try again later.";
+            $errorString .= "There was an error processing your request. Please try again later. <br>";
+            foreach ($result["errors"] as $index => $err) {
+                $errorString .= $err . "<br>";
+            }
+            return $errorString;
         }
         
         if ($result['validations']) {
