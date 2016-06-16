@@ -81,7 +81,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'pid' => array(
                 'title' => __( 'Processor ID', 'wc-goe' ),
                 'type'  => 'text',
-            )
+            ),
+            'auth' => array(
+                'title'   => __( 'Enable/Disable', 'wc-goe' ),
+                'type'    => 'checkbox',
+                'label'   => __( 'Enable goEmerchant Gateway', 'wc-goe' ),
+                'default' => 'yes'
+            ),
         );
     }
 
@@ -116,7 +122,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     public function email_instructions( $order, $sent_to_admin, $plain_text = false ) {
         global $debug;
 
-        if ( ! $sent_to_admin && 'bKash' === $order->payment_method && $order->has_status( 'on-hold' ) ) {
+        if ( ! $sent_to_admin && 'goe' === $order->payment_method /*&& $order->has_status( 'on-hold' )*/ ) {
             if ( $this->instructions ) {
                 echo wpautop( wptexturize( /*$this->instructions*/$debug ) ) . PHP_EOL;
             }
@@ -136,39 +142,39 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $rgw = new RestGateway();
 
         $order = wc_get_order( $order_id ); // object for woocommerce order
-        
-        //WC_Gateway_goe::testGateway();
        
-        //format user cc input
+        //grab input from WC cc form and format appropriately
         $cc = array(
             'cardNumber'   => str_replace(array('-', ' '), '', $_POST['goe-card-number']), 
             'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
             'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
             'cVV'          => $_POST['goe-card-cvc']
             );
+        
         // get customer billing information
         $cust_info = array (
-            'ownerName' => $order->get_formatted_billing_full_name(),
-            'ownerCity' => $order->billing_city,
-            'ownerCountry' => $order->billing_country,
-            'ownerState' => $order->billing_state,
-            'ownerStreet' => $order->billing_address_1,
-            'ownerStreet2' => $order->billing_address_2,
-            'ownerZip' => $order->billing_postcode,
-            'ownerEmail' => $order->billing_email
+            'ownerName'         => $order->get_formatted_billing_full_name(),
+            'ownerCity'         => $order->billing_city,
+            'ownerCountry'      => $order->billing_country,
+            'ownerState'        => $order->billing_state,
+            'ownerStreet'       => $order->billing_address_1,
+            'ownerStreet2'      => $order->billing_address_2,
+            'ownerZip'          => $order->billing_postcode,
+            'ownerEmail'        => $order->billing_email,
+            'transactionAmount' => $order->get_total()
         );
-        $this->gwid = $this->get_option('gwid'); // load gateway id from admin settings
-        $this->pid  = $this->get_option('pid');  // load processor id
+        
+        // Get merchant info from woocommerce admin settings
+        $this->gwid = $this->get_option('gwid');
+        $this->pid  = $this->get_option('pid');
         $form = array( 
-            'merchantKey'       => "$this->gwid", 
-            'processorId'       => "$this->pid",
-            'transactionAmount' => $order->get_total(),
+            'merchantKey' => "$this->gwid", 
+            'processorId' => "$this->pid"
             );
         
-        $customer = array_merge($cc, $cust_info);
-        
-        $transactionData = array_merge($form, $customer); // combine all into one array
+        $transactionData = array_merge($form, $cc, $cust_info); // combine all into one array
         check("Input: " . print_r($transactionData, true));
+        check("Setting for enabled/disabled: " . $this->get_option('Enable/Disable'));
         $rgw->createSale(
                 $transactionData,
                 NULL,
@@ -193,11 +199,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         );
     }
     
-    function success(){
-        check('Success function called.');
-        return;
-    }
-    
     /**
      * Generates a string to show the customer if an error is encountered when
      * processing with the given RestGateway object.
@@ -208,13 +209,48 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      */
     function get_error_string($restGateway){
         $result = $restGateway->result;
-        $code   = $restGateway->status;
-        check("Status: $code");
         $errorString = "";
+        
         if ($result["isError"] == TRUE) {
-            $errorString .= "There was an error processing your request. Please try again later. <br>";
+            $errorString = "There was an error processing your request.<br>";
+            $badCard = "Merchant does not accept this card.<br>";
+            $tryAgain = "Please try a different card or contact us if you feel this is incorrect.<br>";
+            $decline = "The issuing bank has declined this transaction. Please try a different card or contact your issuing bank for more information.<br>";
             foreach ($result["errors"] as $index => $err) {
-                $errorString .= $err . "<br>";
+                switch ($err) {
+                    case 'Auth Declined':
+                    case 'Call Voice Oper':
+                    case 'Hold - Call' :
+                    case 'Invalid Card No' :
+                    case 'Invalid Exp. Date' :
+                    case 'Invalid PIN No' :
+                    case 'Lost/Stolen Card' :
+                    case 'Invalid PIN' :
+                    case 'Over Credit Flr' :
+                    case 'Request Denied' :
+                    case 'Invalid Card' :
+                    case 'CVD Data Error' : $errorString .= $decline; break;
+                    case 'Card Not Allowed' : 
+                        $errorString .= $badCard;
+                        $errorString .= $tryAgain; break;
+                    case 'CVC2/CID ERROR' :
+                        $errorString .= "Invalid CVC.<br>"; break;
+                    case 'Dscv Not Allowed' : 
+                        $errorString .= $badCard; 
+                        $errorString .= $tryAgain; break;
+                    case 'DC Not Allowed' :
+                        $errorString .= $badCard; 
+                        $errorString .= $tryAgain; break;
+                    case 'CB Not Allowed' :
+                        $errorString .= $badCard; 
+                        $errorString .= $tryAgain; break;
+                    case 'AX Not Allowed' :
+                        $errorString .= $badCard; 
+                        $errorString .= $tryAgain; break;
+                    default: // Hard error (Payment server unavailable, etc...)
+                        $errorString .= "Please try again later.<br>";
+                        break 2;
+                }
             }
             return $errorString;
         }
