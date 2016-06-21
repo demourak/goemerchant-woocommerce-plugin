@@ -19,15 +19,18 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $this->has_fields         = true; // checkout fields
         $this->supports           = array( 'default_credit_card_form' ); // show WooCommerce's default form on checkout
         $this->method_title       = __( 'goEmerchant', 'wc-goe' );
-        $this->method_description = __( 'Process transactions using the goEmerchant gateway. Visit our support page for details on viewing transaction history, submitting batches for settlement, and more: support.goemerchant.com', 'wc-goe' );
+        $this->method_description = 
+                __( 'Process transactions using the goEmerchant gateway. '
+                . 'Click <a href="http://support.goemerchant.com/transaction-center.aspx">here</a> '
+                . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.', 'wc-goe' );
 
+        $this->init_form_fields();
+        $this->init_settings();
+        
         $title                    = $this->get_option( 'title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
         $this->description        = $this->get_option( 'description' );
         $this->instructions       = $this->get_option( 'instructions', $this->description );
-
-        $this->init_form_fields();
-        $this->init_settings();
 
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thankyou_page' ) );
@@ -52,31 +55,19 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                 'type'    => 'text',
                 'description' => __( 'The name of this payment method that your customers will see.', 'wc-goe' ),
                 'default' => __( 'Credit Card', 'wc-goe' ),
-            ),/*
-            'description' => array(
-                'title'       => __( 'Description', 'wc-goe' ),
-                'type'        => 'textarea',
-                'description' => __( 'Payment method description that the customer will see on your checkout.', 'wc-goe' ),
-                'default'     => __( 'Send your payment directly to +8801****** via bKash. Please use your Order ID as the payment reference. Your order won\'t be shipped until the funds have cleared in our account.', 'wc-bkash' ),
-                'desc_tip'    => true,
-            ),*/
+            ),
             'instructions' => array(
                 'title'       => __( 'Instructions', 'wc-goe' ),
                 'type'        => 'textarea',
-                'description' => __( 'Instructions that will be added to the thank you page and emails.', 'wc-goe' ),
+                'description' => __( 'Instructions that will be added to the thank you page and emails. '
+                        . 'For more email options, check out the "Emails" tab above.', 'wc-goe' ),
                 'default'     => __( 'Thank you for your purchase!', 'wc-goe' ),
-                'desc_tip'    => true,
-            ),/*
-            'trans_help' => array(
-                'title'       => __( 'Transaction Help Text', 'wc-goe' ),
-                'type'        => 'textarea',
-                'description' => __( 'Instructions that will be added to the transaction form.', 'wc-goe' ),
-                'default'     => __( 'Instructions go here.', 'wc-goe' ),
-                'desc_tip'    => true,
-            ),*/
+            ),
             'gwid' => array(
                 'title' => __( 'Merchant Key (Gateway ID)', 'wc-goe' ),
                 'type'  => 'text',
+                'description' => __( 'You can find your gateway and processor ID by logging into the transaction center and following the steps listed '
+                        . '<a href="http://support.goemerchant.com/transaction-center.aspx?article=gateway-options">here</a>.')
             ),
             'pid' => array(
                 'title' => __( 'Processor ID', 'wc-goe' ),
@@ -86,8 +77,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                 'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
                 'label'   => __( 'When this is enabled, transactions processed through this gateway'
-                        . ' will only be authorized and will have to be manually submitted for settlement. Visit our support page'
-                        . ' for a walkthrough of settling transactions.', 'wc-goe' ),
+                        . ' will only be authorized and will have to be manually submitted for settlement.'
+                        . ' Visit our <a href="http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch">support page</a>'
+                        . ' for a walkthrough of settling transactions. Leave this option unchecked to automatically settle transactions after approval.', 'wc-goe' ),
                 'default' => 'no'
             ),
         );
@@ -99,11 +91,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * @return void
      */
     public function thankyou_page( $order_id ) {
-        /*
         if ( $this->instructions ) {
             echo wpautop( wptexturize( wp_kses_post( $this->instructions ) ) );
         }
-
+        /*
         $order = wc_get_order( $order_id );
 
         if ( $order->has_status( 'on-hold' ) ) {
@@ -124,9 +115,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     public function email_instructions( $order, $sent_to_admin, $plain_text = false ) {
         global $debug;
 
-        if ( ! $sent_to_admin && 'goe' === $order->payment_method /*&& $order->has_status( 'on-hold' )*/ ) {
+        if ( ! $sent_to_admin && 'goe' === $order->payment_method ) {
             if ( $this->instructions ) {
-                echo wpautop( wptexturize( /*$this->instructions*/$debug ) ) . PHP_EOL;
+                echo wpautop( wptexturize( $this->instructions ) ) . PHP_EOL;
             }
         }
 
@@ -134,7 +125,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
     /**
      * Process the gateway integration
-     *
+     * Triggered upon click of "Place Order".
      * @param  int  $order_id
      *
      * @return void
@@ -201,8 +192,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         else {
             $order->update_status( 'processing' );
         }
-
-        // Remove cart
+        
+        $order->reduce_order_stock();
         WC()->cart->empty_cart();
 
         // Return thank you redirect
