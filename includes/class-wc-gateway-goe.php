@@ -19,7 +19,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $this->has_fields         = true; // checkout fields
         $this->supports           = array( 'default_credit_card_form' ); // show WooCommerce's default form on checkout
         $this->method_title       = __( 'goEmerchant', 'wc-goe' );
-        $this->method_description = __( 'Process transactions using the goEmerchant gateway.', 'wc-goe' );
+        $this->method_description = __( 'Process transactions using the goEmerchant gateway. Visit our support page for details on viewing transaction history, submitting batches for settlement, and more: support.goemerchant.com', 'wc-goe' );
 
         $title                    = $this->get_option( 'title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
@@ -82,11 +82,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                 'title' => __( 'Processor ID', 'wc-goe' ),
                 'type'  => 'text',
             ),
-            'auth' => array(
-                'title'   => __( 'Enable/Disable', 'wc-goe' ),
+            'auth-only' => array(
+                'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
-                'label'   => __( 'Enable goEmerchant Gateway', 'wc-goe' ),
-                'default' => 'yes'
+                'label'   => __( 'When this is enabled, transactions processed through this gateway'
+                        . ' will only be authorized and will have to be manually submitted for settlement. Visit our support page'
+                        . ' for a walkthrough of settling transactions.', 'wc-goe' ),
+                'default' => 'no'
             ),
         );
     }
@@ -137,68 +139,79 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      *
      * @return void
      */
-    public function process_payment( $order_id ) {
-        
+    public function process_payment($order_id) {
+
         $rgw = new RestGateway();
 
-        $order = wc_get_order( $order_id ); // object for woocommerce order
-       
+        $order = wc_get_order($order_id); // object for woocommerce order
         //grab input from WC cc form and format appropriately
         $cc = array(
-            'cardNumber'   => str_replace(array('-', ' '), '', $_POST['goe-card-number']), 
+            'cardNumber' => str_replace(array('-', ' '), '', $_POST['goe-card-number']),
             'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
-            'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
-            'cVV'          => $_POST['goe-card-cvc']
-            );
-        
+            'cardExpYear' => substr($_POST['goe-card-expiry'], -2),
+            'cVV' => $_POST['goe-card-cvc']
+        );
+
         // get customer billing information
-        $cust_info = array (
-            'ownerName'         => $order->get_formatted_billing_full_name(),
-            'ownerCity'         => $order->billing_city,
-            'ownerCountry'      => $order->billing_country,
-            'ownerState'        => $order->billing_state,
-            'ownerStreet'       => $order->billing_address_1,
-            'ownerStreet2'      => $order->billing_address_2,
-            'ownerZip'          => $order->billing_postcode,
-            'ownerEmail'        => $order->billing_email,
+        $cust_info = array(
+            'ownerName' => $order->get_formatted_billing_full_name(),
+            'ownerCity' => $order->billing_city,
+            'ownerCountry' => $order->billing_country,
+            'ownerState' => $order->billing_state,
+            'ownerStreet' => $order->billing_address_1,
+            'ownerStreet2' => $order->billing_address_2,
+            'ownerZip' => $order->billing_postcode,
+            'ownerEmail' => $order->billing_email,
             'transactionAmount' => $order->get_total()
         );
-        
+
         // Get merchant info from woocommerce admin settings
         $this->gwid = $this->get_option('gwid');
-        $this->pid  = $this->get_option('pid');
-        $form = array( 
-            'merchantKey' => "$this->gwid", 
+        $this->pid = $this->get_option('pid');
+        $form = array(
+            'merchantKey' => "$this->gwid",
             'processorId' => "$this->pid"
-            );
-        
+        );
+
         $transactionData = array_merge($form, $cc, $cust_info); // combine all into one array
-        check("Input: " . print_r($transactionData, true));
-        check("Setting for enabled/disabled: " . $this->get_option('Enable/Disable'));
-        $rgw->createSale(
-                $transactionData,
-                NULL,
-                NULL);
-        
-        check("Result: " . print_r($rgw->result, true));
-        
+        //check("Input: " . print_r($transactionData, true));
+        check("Setting for enabled/disabled: " . $this->get_option('auth-only'));
+        $authOnly = $this->get_option('auth-only') == 'yes';
+        if ($authOnly) {
+            $rgw->createAuth(
+                    $transactionData, NULL, NULL);
+        } else {
+            $rgw->createSale(
+                    $transactionData, NULL, NULL);
+        }
+
+        //check("Result: " . print_r($rgw->result, true));
+
         $error_msg = $this->get_error_string($rgw);
-        check("error_msg: $error_msg");
+        //check("error_msg: $error_msg");
         if ($error_msg) {
-            wc_add_notice( __('Payment error: ', 'woothemes') . $error_msg, 'error' );
+            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
+            $order->update_status( 'failed' );
             return;
         }
         
+        if ($authOnly) {
+            $order->update_status( 'on-hold', __( 'Payment authorized. Settle to receive funds.', 'wc-goe') );
+        }
+        else {
+            $order->update_status( 'processing' );
+        }
+
         // Remove cart
         WC()->cart->empty_cart();
-        
-        // Return thankyou redirect
+
+        // Return thank you redirect
         return array(
-            'result'    => 'success',
-            'redirect'  => $this->get_return_url( $order )
+            'result' => 'success',
+            'redirect' => $this->get_return_url($order)
         );
     }
-    
+
     /**
      * Generates a string to show the customer if an error is encountered when
      * processing with the given RestGateway object.
