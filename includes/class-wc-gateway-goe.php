@@ -94,12 +94,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         if ( $this->instructions ) {
             echo wpautop( wptexturize( wp_kses_post( $this->instructions ) ) );
         }
-        /*
-        $order = wc_get_order( $order_id );
-
-        if ( $order->has_status( 'on-hold' ) ) {
-            WC_Goe::tranasaction_form( $order_id );
-        }*/
     }
 
     /**
@@ -137,36 +131,34 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $order = wc_get_order($order_id); // object for woocommerce order
         //grab input from WC cc form and format appropriately
         $cc = array(
-            'cardNumber' => str_replace(array('-', ' '), '', $_POST['goe-card-number']),
+            'cardNumber'   => str_replace(array('-', ' '), '', $_POST['goe-card-number']),
             'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
-            'cardExpYear' => substr($_POST['goe-card-expiry'], -2),
-            'cVV' => $_POST['goe-card-cvc']
+            'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
+            'cVV'          => $_POST['goe-card-cvc']
         );
 
         // get customer billing information
         $cust_info = array(
-            'ownerName' => $order->get_formatted_billing_full_name(),
-            'ownerCity' => $order->billing_city,
-            'ownerCountry' => $order->billing_country,
-            'ownerState' => $order->billing_state,
-            'ownerStreet' => $order->billing_address_1,
-            'ownerStreet2' => $order->billing_address_2,
-            'ownerZip' => $order->billing_postcode,
-            'ownerEmail' => $order->billing_email,
+            'ownerName'         => $order->get_formatted_billing_full_name(),
+            'ownerCity'         => $order->billing_city,
+            'ownerCountry'      => $order->billing_country,
+            'ownerState'        => $order->billing_state,
+            'ownerStreet'       => $order->billing_address_1,
+            'ownerStreet2'      => $order->billing_address_2,
+            'ownerZip'          => $order->billing_postcode,
+            'ownerEmail'        => $order->billing_email,
             'transactionAmount' => $order->get_total()
         );
 
-        // Get merchant info from woocommerce admin settings
+        // Get merchant info from woocommerce -> settings -> checkout -> goe
         $this->gwid = $this->get_option('gwid');
-        $this->pid = $this->get_option('pid');
-        $form = array(
+        $this->pid  = $this->get_option('pid');
+        $merchant_info = array(
             'merchantKey' => "$this->gwid",
             'processorId' => "$this->pid"
         );
 
-        $transactionData = array_merge($form, $cc, $cust_info); // combine all into one array
-        //check("Input: " . print_r($transactionData, true));
-        check("Setting for enabled/disabled: " . $this->get_option('auth-only'));
+        $transactionData = array_merge($merchant_info, $cc, $cust_info); // combine all into one array
         $authOnly = $this->get_option('auth-only') == 'yes';
         if ($authOnly) {
             $rgw->createAuth(
@@ -259,6 +251,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             return $errorString;
         }
         
+        //check for validation errors
         if ($result['validations']) {
             $errorString .= "Could not process your order. Please correct the following errors: <br>";
             foreach ($result["validations"] as $index => $vError) {
