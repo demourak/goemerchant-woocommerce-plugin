@@ -13,8 +13,6 @@
         return $this->array;
         }
     }
-
-    require_once 'debug.php';
 class RestGateway{
     /**
     * RestGateway Class: A library of functions used to call the 1stPayBlaze web service.

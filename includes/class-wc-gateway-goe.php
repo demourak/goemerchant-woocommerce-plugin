@@ -33,7 +33,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $this->instructions       = $this->get_option( 'instructions', $this->description );
 
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
-        add_action( 'woocommerce_thankyou_goe', array( $this, 'thankyou_page' ) );
+        add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
     }
 
@@ -90,7 +90,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      *
      * @return void
      */
-    public function thankyou_page( $order_id ) {
+    public function thank_you_page( $order_id ) {
         if ( $this->instructions ) {
             echo wpautop( wptexturize( wp_kses_post( $this->instructions ) ) );
         }
@@ -107,14 +107,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * @return void
      */
     public function email_instructions( $order, $sent_to_admin, $plain_text = false ) {
-        global $debug;
-
         if ( ! $sent_to_admin && 'goe' === $order->payment_method ) {
             if ( $this->instructions ) {
                 echo wpautop( wptexturize( $this->instructions ) ) . PHP_EOL;
             }
         }
-
     }
 
     /**
@@ -262,9 +259,4 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         
         return FALSE; // no error
     }
-    
-    static function testGateway() {
-        require_once 'test.php';
-    }
-
 }

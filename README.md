@@ -1,1 +1,1 @@
-# WooCommerce GoEmerchant TEST
+# goEmerchant Gateway Plugin for WooCommerce
