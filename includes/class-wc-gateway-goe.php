@@ -1,7 +1,7 @@
 <?php
 
 include_once 'debug.php';
-require_once 'gateway.php';
+//require_once 'gateway.php';
 
 /**
  * goEmerchant Gateway, extending the WooCommerce class.
@@ -259,4 +259,179 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         
         return FALSE; // no error
     }
+}
+
+class RestGateway {
+
+    /**
+     * RestGateway Class: A library of functions used to call the 1stPayBlaze web service.
+     * This class is required for every PHP web page making a call to 1stPayBlaze. 
+     * This class/file contains all allowed executable methods.
+     * Please refer to the gateway documentation web page for specifics on what parameters to use for each call.
+     * Last modified: 6/27/2015
+     * @author Patrick Petrino
+     * @version 1.0.0
+     *
+     *
+     */
+    public function __construct() {
+        global $apiUrl, $result, $status;
+        $this->version = "1.0.0";
+        $this->apiUrl = "https://secure.1stpaygateway.net/secure/RestGW/Gateway/Transaction/";
+        $this->result = array();
+        $this->status = "";
+        //apiUrl, result, status have to be declared globally this way, otherwise not all the functions can see it.
+    }
+
+    public function createSale($transactionData, $callBackSuccess, $callBackFailure) {
+        $apiRequest = $this->apiUrl . "Sale";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->status >= 500 && $this->status <= 599) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 400 && $this->status <= 499) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 200 && $this->status <= 299) {
+            call_user_func($callBackSuccess);
+        }
+    }
+
+    public function createAuth($transactionData, $callBackSuccess, $callBackFailure) {
+        $apiRequest = $this->apiUrl . "Auth";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->status >= 500 && $this->status <= 599) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 400 && $this->status <= 499) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 200 && $this->status <= 299) {
+            call_user_func($callBackSuccess);
+        }
+    }
+
+    protected function performRequest($data, $apiRequest, $callBackSuccess, $callBackFailure) {
+        /**
+         * performRequest: this function is responsible for actually submitting the gateway request.
+         * It also parses the response and sends it back to the original call.
+         * The function works as follows: 
+         * 1. Set up input data so the gateway can understand it
+         * 2. Set up cURL request. Note that since this is SOAP we have to pass very specific options.
+         * Also note that since cURL is picky, we have to turn off SSL verification. We're still transmitting https, though.
+         * 3. Parse the response based on the information returned from the gateway and return it as an array.
+         * The resulting array is stored in $this->result in the RestGateway object.
+         */
+        try {
+            if ($data == NULL) {
+                $data = array();
+            }
+            //check("Request data: " . print_r($data, true));
+            $url = $apiRequest;
+            $this->result = array();
+            $jsondata = json_encode(new Transaction($data), JSON_PRETTY_PRINT);
+            $jsondata = utf8_encode($jsondata);
+            //DEBUG
+            $jsondata = substr($jsondata, 9); // remove weird inner array
+            //check( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
+            $curl_handle = curl_init();
+            curl_setopt($curl_handle, CURLOPT_URL, $url);
+            curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
+            curl_setopt($curl_handle, CURLOPT_POSTFIELDS, $jsondata);
+            curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, TRUE);
+            curl_setopt($curl_handle, CURLOPT_HTTPHEADER, array(
+                "Content-type: application/json; charset-utf-8",
+                'Content-Length: ' . strlen($jsondata)));
+            curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, FALSE);
+            $response = curl_exec($curl_handle);
+            $this->status = curl_getinfo($curl_handle, CURLINFO_HTTP_CODE);
+            if (connection_aborted()) {
+                //This will handle aborted requests that PHP can detect, returning a result that indicates POST was aborted.
+                $this->result = array(
+                    'isError' => TRUE,
+                    'errorMessages' => "Request Aborted",
+                    'isValid' => FALSE,
+                    'validations' => array(),
+                    'action' => "gatewayError");
+                return $this->result;
+            }
+            $jresult = (json_decode($response, TRUE));
+            $case = strtolower($jresult["action"]);
+            if ($jresult["isSuccess"]) {
+                if ($jresult["data"]["isPartial"] == TRUE) {
+                    //Set up partial order results
+                    //PHP development environment warns when this variable doesn't exist.
+                    //But most PHP configurations for production environments won't warn isPartial doesn't exist
+                    $this->result = array(
+                        "isPartial" => TRUE,
+                        "partialOrder" => array(
+                            "partialId" => $jresult["data"]["partialId"],
+                            "amountRemaining" => $jresult["data"]["originalFullAmount"] - $jresult["data"]["partialAmountApproved"],
+                            "originalFullAmount" => $jresult["data"]["originalFullAmount"],
+                            "amountApproved" => $jresult["data"]["partialAmountApproved"]),
+                        "orderId" => $jresult["data"]["orderId"],
+                        "authCode" => $jresult["data"]["authCode"]);
+                    return $this->result;
+                } else {
+                    foreach ($jresult["data"] as $key => $value) {
+                        $this->result[$key] = $value;
+                    }
+                    //$this->result = array(
+                    //"isSuccess" => TRUE,
+                    //"data" => $jresult["data"]);
+                    //return $this->result; 
+                }
+                return $this->result;
+            }
+            if ($jresult["validationHasFailed"]) {
+                $this->result = array(
+                    'isError' => FALSE,
+                    'errors' => $jresult["errorMessages"],
+                    'isValid' => FALSE,
+                    'validations' => $jresult["validationFailures"]);
+                return $this->result;
+            }
+            if (curl_errno($curl_handle) == 28) {
+                //This will handle timeouts as per cURL error definitions.
+                $this->result = array(
+                    'isError' => TRUE,
+                    'errorMessages' => "Request Timed Out",
+                    'isValid' => FALSE,
+                    'validations' => array(),
+                    'action' => "gatewayError");
+                return $this->result;
+            }
+
+            if ($jresult["isError"]) {
+                //This will handle the errors. May need to do further checking on response.
+                $this->result = array(
+                    'isError' => TRUE,
+                    'errors' => $jresult["errorMessages"],
+                    'isValid' => FALSE,
+                    'validations' => $jresult["validationFailures"]);
+                return $this->result;
+            }
+            return $this->result;
+        } catch (Exception $e) {
+            var_dump($e->getMessage());
+        }
+    }
+
+}
+
+class Transaction implements JsonSerializable {
+
+    /**
+     * Transaction class: Ties into the PHP JSON Functions & makes them easily available to the RestGateway class.
+     * Using the class like so: $a = json_encode(new Transaction($txnarray), JSON_PRETTY_PRINT)
+     * Will produce json data that the gateway should understand.
+     */
+    public function __construct(array $array) {
+        $this->array = $array;
+    }
+
+    public function jsonSerialize() {
+        return $this->array;
+    }
+
 }
