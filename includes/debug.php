@@ -9,6 +9,3 @@
 function check($string, $subject = 'PHP Debug', $to = 'kevin.demoura@goemerchant.com') {
     mail($to, $subject, $string);
 }
-
-$Test123 = 'Hello, this is test.';
-

@@ -1,8 +1,5 @@
 <?php
 
-include_once 'debug.php';
-//require_once 'gateway.php';
-
 /**
  * goEmerchant Gateway, extending the WooCommerce class.
  *
@@ -38,7 +35,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     }
 
     /**
-     * Admin configuration parameters
+     * Admin configuration parameters. Reflected in WooCommerce -> Settings -> 
+     * Checkout -> goEmerchant
      *
      * @return void
      */
@@ -126,7 +124,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $rgw = new RestGateway();
 
         $order = wc_get_order($order_id); // object for woocommerce order
-        //grab input from WC cc form and format appropriately
+        //grab input from WC default cc form and format appropriately
         $cc = array(
             'cardNumber'   => str_replace(array('-', ' '), '', $_POST['goe-card-number']),
             'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
@@ -134,7 +132,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'cVV'          => $_POST['goe-card-cvc']
         );
 
-        // get customer billing information
+        // get customer billing information from WC
         $cust_info = array(
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
@@ -201,7 +199,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * otherwise returns false.
      */
     function get_error_string($restGateway){
-        $result = $restGateway->result;
+        $result = $restGateway->Result;
+        check(print_r($result, true));
         $errorString = "";
         
         if ($result["isError"] == TRUE) {
@@ -209,9 +208,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             $badCard = "Merchant does not accept this card.<br>";
             $tryAgain = "Please try a different card or contact us if you feel this is incorrect.<br>";
             $decline = "The issuing bank has declined this transaction. Please try a different card or contact your issuing bank for more information.<br>";
-            foreach ($result["errors"] as $index => $err) {
+            foreach ($result["errorMessages"] as $index => $err) {
                 switch ($err) {
                     case 'Auth Declined':
+                    case 'Do Not Honor':
                     case 'Call Voice Oper':
                     case 'Hold - Call' :
                     case 'Invalid Card No' :
@@ -311,112 +311,69 @@ class RestGateway {
         }
     }
 
-    protected function performRequest($data, $apiRequest, $callBackSuccess, $callBackFailure) {
-        /**
-         * performRequest: this function is responsible for actually submitting the gateway request.
-         * It also parses the response and sends it back to the original call.
-         * The function works as follows: 
-         * 1. Set up input data so the gateway can understand it
-         * 2. Set up cURL request. Note that since this is SOAP we have to pass very specific options.
-         * Also note that since cURL is picky, we have to turn off SSL verification. We're still transmitting https, though.
-         * 3. Parse the response based on the information returned from the gateway and return it as an array.
-         * The resulting array is stored in $this->result in the RestGateway object.
-         */
-        try {
-            if ($data == NULL) {
-                $data = array();
-            }
-            //check("Request data: " . print_r($data, true));
-            $url = $apiRequest;
-            $this->result = array();
-            $jsondata = json_encode(new Transaction($data), JSON_PRETTY_PRINT);
-            $jsondata = utf8_encode($jsondata);
-            //DEBUG
-            $jsondata = substr($jsondata, 9); // remove weird inner array
-            //check( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
-            $curl_handle = curl_init();
-            curl_setopt($curl_handle, CURLOPT_URL, $url);
-            curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
-            curl_setopt($curl_handle, CURLOPT_POSTFIELDS, $jsondata);
-            curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, TRUE);
-            curl_setopt($curl_handle, CURLOPT_HTTPHEADER, array(
-                "Content-type: application/json; charset-utf-8",
-                'Content-Length: ' . strlen($jsondata)));
-            curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, FALSE);
-            $response = curl_exec($curl_handle);
-            $this->status = curl_getinfo($curl_handle, CURLINFO_HTTP_CODE);
-            if (connection_aborted()) {
-                //This will handle aborted requests that PHP can detect, returning a result that indicates POST was aborted.
-                $this->result = array(
-                    'isError' => TRUE,
-                    'errorMessages' => "Request Aborted",
-                    'isValid' => FALSE,
-                    'validations' => array(),
-                    'action' => "gatewayError");
-                return $this->result;
-            }
+    protected function performRequest($data, $apiRequest, $callBackSuccess = NULL, $callBackFailure = NULL){
+            /**
+            * performRequest: this function is responsible for actually submitting the gateway request.
+            * It also parses the response and sends it back to the original call.
+            * The function works as follows:
+            * 1. Set up input data so the gateway can understand it
+            * 2. Set up cURL request. Note that since this is SOAP we have to pass very specific options.
+            * Also note that since cURL is picky, we have to turn off SSL verification. We're still transmitting https, though.
+            * 3. Parse the response based on the information returned from the gateway and return it as an array.
+            * The resulting array is stored in $this->Result in the RestGateway object.
+            */
+        try{
+          if ($data == NULL){$data = array(); }
+          $url = $apiRequest;
+          $this->Result = array();
+          $jsondata = json_encode(new Transaction($data),JSON_PRETTY_PRINT);
+          $jsondata = utf8_encode($jsondata);
+          $jsondata = substr($jsondata, 9); // remove weird inner array
+          // DEBUG
+          check ( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
+          $curl_handle=curl_init();
+          curl_setopt($curl_handle, CURLOPT_URL, $url);
+          curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
+          curl_setopt($curl_handle, CURLOPT_POSTFIELDS, $jsondata);
+          curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, TRUE);
+          curl_setopt($curl_handle, CURLOPT_HTTPHEADER, array(
+          "Content-type: application/json; charset-utf-8",
+          "Content-Length: " . strlen($jsondata)));
+          curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, FALSE);
+          $response = curl_exec($curl_handle);
+          $this->Status = curl_getinfo($curl_handle,CURLINFO_HTTP_CODE);
+          if(connection_aborted()){
+              //This will handle aborted requests that PHP can detect, returning a result that indicates POST was aborted.
+             $this->Result = array(
+               "isError" => TRUE,
+               "errorMessages" => "Request Aborted",
+               "isValid" => FALSE,
+               "validations" => array(),
+               "action" => "gatewayError");
+              return $this->Result;
+          }
+          if (curl_errno($curl_handle) == 28 ){
+            //This will handle timeouts as per cURL error definitions.
+            $this->Result = array(
+              "isError" => TRUE,
+              "errorMessages" => "Request Timed Out",
+              "isValid" => FALSE,
+              "validations" => array(),
+              "action" => "gatewayError");
+              return $this->Result;
+          }
+          else{
             $jresult = (json_decode($response, TRUE));
-            $case = strtolower($jresult["action"]);
-            if ($jresult["isSuccess"]) {
-                if ($jresult["data"]["isPartial"] == TRUE) {
-                    //Set up partial order results
-                    //PHP development environment warns when this variable doesn't exist.
-                    //But most PHP configurations for production environments won't warn isPartial doesn't exist
-                    $this->result = array(
-                        "isPartial" => TRUE,
-                        "partialOrder" => array(
-                            "partialId" => $jresult["data"]["partialId"],
-                            "amountRemaining" => $jresult["data"]["originalFullAmount"] - $jresult["data"]["partialAmountApproved"],
-                            "originalFullAmount" => $jresult["data"]["originalFullAmount"],
-                            "amountApproved" => $jresult["data"]["partialAmountApproved"]),
-                        "orderId" => $jresult["data"]["orderId"],
-                        "authCode" => $jresult["data"]["authCode"]);
-                    return $this->result;
-                } else {
-                    foreach ($jresult["data"] as $key => $value) {
-                        $this->result[$key] = $value;
-                    }
-                    //$this->result = array(
-                    //"isSuccess" => TRUE,
-                    //"data" => $jresult["data"]);
-                    //return $this->result; 
-                }
-                return $this->result;
-            }
-            if ($jresult["validationHasFailed"]) {
-                $this->result = array(
-                    'isError' => FALSE,
-                    'errors' => $jresult["errorMessages"],
-                    'isValid' => FALSE,
-                    'validations' => $jresult["validationFailures"]);
-                return $this->result;
-            }
-            if (curl_errno($curl_handle) == 28) {
-                //This will handle timeouts as per cURL error definitions.
-                $this->result = array(
-                    'isError' => TRUE,
-                    'errorMessages' => "Request Timed Out",
-                    'isValid' => FALSE,
-                    'validations' => array(),
-                    'action' => "gatewayError");
-                return $this->result;
-            }
-
-            if ($jresult["isError"]) {
-                //This will handle the errors. May need to do further checking on response.
-                $this->result = array(
-                    'isError' => TRUE,
-                    'errors' => $jresult["errorMessages"],
-                    'isValid' => FALSE,
-                    'validations' => $jresult["validationFailures"]);
-                return $this->result;
-            }
-            return $this->result;
-        } catch (Exception $e) {
-            var_dump($e->getMessage());
+            //$case = strtolower($jresult["action"]);
+            $this->Result = $jresult;
+            return $this->Result;
+          }
+        }
+        catch (Exception $e){
+          return $e->getMessage();
         }
     }
-
+    
 }
 
 class Transaction implements JsonSerializable {

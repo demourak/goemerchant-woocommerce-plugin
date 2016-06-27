@@ -42,7 +42,6 @@ class Goemerchant_Plugin {
         }
 
         require_once dirname( __FILE__ ) . '/includes/class-wc-gateway-goe.php';
-        //require_once dirname( __FILE__ ) . '/includes/gateway.php';
     }
 
     /**
@@ -66,7 +65,7 @@ class Goemerchant_Plugin {
     function install() {
         global $wpdb;
 
-        $query = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}wc_goe` (
+        /*$query = "CREATE TABLE IF NOT EXISTS `{$wpdb->prefix}wc_goe` (
             `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
             `trxId` int(11) DEFAULT NULL,
             `sender` varchar(15) DEFAULT NULL,
@@ -78,9 +77,7 @@ class Goemerchant_Plugin {
 
         $wpdb->query( $query );
 
-        //$this->plugin_upgrades();
-
-        update_option( $this->version_key, $this->db_version );
+        update_option( $this->version_key, $this->db_version );*/
     }
 
     /**
