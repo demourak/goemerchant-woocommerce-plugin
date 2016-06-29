@@ -163,10 +163,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                     $transactionData, NULL, NULL);
         }
 
-        //check("Result: " . print_r($rgw->result, true));
-
         $error_msg = $this->get_error_string($rgw);
-        //check("error_msg: $error_msg");
         if ($error_msg) {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
             $order->update_status( 'failed' );
@@ -200,13 +197,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      */
     function get_error_string($restGateway){
         $result = $restGateway->Result;
-        check(print_r($result, true));
         $errorString = "";
         
         if ($result["isError"] == TRUE) {
             $errorString = "There was an error processing your request.<br>";
             $badCard = "Merchant does not accept this card.<br>";
-            $tryAgain = "Please try a different card or contact us if you feel this is incorrect.<br>";
+            $tryAgain = "Please try a different card.<br>";
             $decline = "The issuing bank has declined this transaction. Please try a different card or contact your issuing bank for more information.<br>";
             foreach ($result["errorMessages"] as $index => $err) {
                 switch ($err) {
@@ -329,8 +325,6 @@ class RestGateway {
           $jsondata = json_encode(new Transaction($data),JSON_PRETTY_PRINT);
           $jsondata = utf8_encode($jsondata);
           $jsondata = substr($jsondata, 9); // remove weird inner array
-          // DEBUG
-          check ( "SENDING JSON DATA: " . $jsondata . "<br/>\n");
           $curl_handle=curl_init();
           curl_setopt($curl_handle, CURLOPT_URL, $url);
           curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
