@@ -245,9 +245,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         }
         
         //check for validation errors
-        if ($result['validations']) {
+        if ($result['validationHasFailed']) {
             $errorString .= "Could not process your order. Please correct the following errors: <br>";
-            foreach ($result["validations"] as $index => $vError) {
+            foreach ($result["validationFailures"] as $index => $vError) {
                 $errorString .= $vError['message'] . "<br>";
             }
             return $errorString;
