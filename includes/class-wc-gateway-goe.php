@@ -76,9 +76,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'auth-only' => array(
                 'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
-                'label'   => __( ' Do not automatically settle transactions.'
+                'label'   => __( 'If enabled, you must manually submit transactions for settlement in'
+                        . ' your goEmerchant Transaction Center in order to capture the funds.'
                         . ' Visit our <a href="http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch">support page</a>'
-                        . ' for a walkthrough of settling transactions. Leave this option unchecked to automatically settle transactions after approval.', 'wc-goe' ),
+                        . ' for a walkthrough of settling transactions.', 'wc-goe' ),
                 'default' => 'no'
             ),
         );
