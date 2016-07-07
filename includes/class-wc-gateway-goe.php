@@ -1,5 +1,7 @@
 <?php
 
+require_once 'debug.php';
+
 /**
  * goEmerchant Gateway, extending the WooCommerce class.
  *
@@ -16,14 +18,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $this->has_fields         = true; // checkout fields
         $this->supports           = array( 'default_credit_card_form' ); // show WooCommerce's default form on checkout
         $this->method_title       = __( 'goEmerchant', 'wc-goe' );
-        $this->method_description = 
+        $this->method_description =
                 __( 'Process transactions using the goEmerchant gateway. '
                 . 'Click <a href="http://support.goemerchant.com/transaction-center.aspx">here</a> '
                 . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.', 'wc-goe' );
 
         $this->init_form_fields();
         $this->init_settings();
-        
+
         $title                    = $this->get_option( 'title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
         $this->description        = $this->get_option( 'description' );
@@ -35,7 +37,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     }
 
     /**
-     * Admin configuration parameters. Reflected in WooCommerce -> Settings -> 
+     * Admin configuration parameters. Reflected in WooCommerce -> Settings ->
      * Checkout -> goEmerchant
      *
      * @return void
@@ -74,8 +76,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'auth-only' => array(
                 'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
-                'label'   => __( 'When this is enabled, transactions processed through this gateway'
-                        . ' will only be authorized and will have to be manually submitted for settlement.'
+                'label'   => __( ' Do not automatically settle transactions.'
                         . ' Visit our <a href="http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch">support page</a>'
                         . ' for a walkthrough of settling transactions. Leave this option unchecked to automatically settle transactions after approval.', 'wc-goe' ),
                 'default' => 'no'
@@ -134,6 +135,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
         // get customer billing information from WC
         $cust_info = array(
+            // Set order ID to match woocommerce order number
+            'orderId'           => $order->get_order_number(),
+            // Set IP Address for fraud screening
+            //'ipAddress'         => WC_Geolocation::get_ip_address(),
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
             'ownerCountry'      => $order->billing_country,
@@ -142,15 +147,19 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             'ownerStreet2'      => $order->billing_address_2,
             'ownerZip'          => $order->billing_postcode,
             'ownerEmail'        => $order->billing_email,
+            'ownerPhone'        => $order->billing_phone,
             'transactionAmount' => $order->get_total()
         );
+        
+        //$ip = file_get_contents('https://api.ipify.org');
 
         // Get merchant info from woocommerce -> settings -> checkout -> goe
         $this->gwid = $this->get_option('gwid');
         $this->pid  = $this->get_option('pid');
         $merchant_info = array(
-            'merchantKey' => "$this->gwid",
-            'processorId' => "$this->pid"
+            'merchantKey' => $this->gwid,
+            'processorId' => $this->pid
+            //'ipAddress'   => $ip
         );
 
         $transactionData = array_merge($merchant_info, $cc, $cust_info); // combine all into one array
@@ -165,18 +174,18 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
         $error_msg = $this->get_error_string($rgw);
         if ($error_msg) {
-            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
+            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg . "<br><br>" . "Transaction data: " . print_r($transactionData, true), 'error');
             $order->update_status( 'failed' );
             return;
         }
-        
+
         if ($authOnly) {
             $order->update_status( 'on-hold', __( 'Payment authorized. Settle to receive funds.', 'wc-goe') );
         }
         else {
             $order->update_status( 'processing' );
         }
-        
+
         $order->reduce_order_stock();
         WC()->cart->empty_cart();
 
@@ -190,15 +199,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
     /**
      * Generates a string to show the customer if an error is encountered when
      * processing with the given RestGateway object.
-     * 
+     *
      * @param type $restGateway
      * @return string|boolean Returns error string with line breaks if there is an error,
      * otherwise returns false.
      */
     function get_error_string($restGateway){
         $result = $restGateway->Result;
+        $result_str = "Result: " . print_r($result, true);
         $errorString = "";
-        
+
         if ($result["isError"] == TRUE) {
             $errorString = "There was an error processing your request.<br>";
             $badCard = "Merchant does not accept this card.<br>";
@@ -219,31 +229,31 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                     case 'Request Denied' :
                     case 'Invalid Card' :
                     case 'CVD Data Error' : $errorString .= $decline; break;
-                    case 'Card Not Allowed' : 
+                    case 'Card Not Allowed' :
                         $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     case 'CVC2/CID ERROR' :
                         $errorString .= "Invalid CVC.<br>"; break;
-                    case 'Dscv Not Allowed' : 
-                        $errorString .= $badCard; 
+                    case 'Dscv Not Allowed' :
+                        $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     case 'DC Not Allowed' :
-                        $errorString .= $badCard; 
+                        $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     case 'CB Not Allowed' :
-                        $errorString .= $badCard; 
+                        $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     case 'AX Not Allowed' :
-                        $errorString .= $badCard; 
+                        $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     default: // Hard error (Payment server unavailable, etc...)
                         $errorString .= "Please try again later.<br>";
                         break 2;
                 }
             }
-            return $errorString;
+            return $errorString . "<br> . $result_str";
         }
-        
+
         //check for validation errors
         if ($result['validationHasFailed']) {
             $errorString .= "Could not process your order. Please correct the following errors: <br>";
@@ -252,7 +262,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             }
             return $errorString;
         }
-        
+
         return FALSE; // no error
     }
 }
@@ -261,7 +271,7 @@ class RestGateway {
 
     /**
      * RestGateway Class: A library of functions used to call the 1stPayBlaze web service.
-     * This class is required for every PHP web page making a call to 1stPayBlaze. 
+     * This class is required for every PHP web page making a call to 1stPayBlaze.
      * This class/file contains all allowed executable methods.
      * Please refer to the gateway documentation web page for specifics on what parameters to use for each call.
      * Last modified: 6/27/2015
@@ -322,9 +332,9 @@ class RestGateway {
           if ($data == NULL){$data = array(); }
           $url = $apiRequest;
           $this->Result = array();
-          $jsondata = json_encode(new Transaction($data),JSON_PRETTY_PRINT);
+          $jsondata = json_encode($data, JSON_PRETTY_PRINT);
           $jsondata = utf8_encode($jsondata);
-          $jsondata = substr($jsondata, 9); // remove weird inner array
+          check("jsondata: " . print_r($jsondata, true));
           $curl_handle=curl_init();
           curl_setopt($curl_handle, CURLOPT_URL, $url);
           curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
@@ -358,7 +368,6 @@ class RestGateway {
           }
           else{
             $jresult = (json_decode($response, TRUE));
-            //$case = strtolower($jresult["action"]);
             $this->Result = $jresult;
             return $this->Result;
           }
@@ -366,23 +375,6 @@ class RestGateway {
         catch (Exception $e){
           return $e->getMessage();
         }
-    }
-    
-}
-
-class Transaction implements JsonSerializable {
-
-    /**
-     * Transaction class: Ties into the PHP JSON Functions & makes them easily available to the RestGateway class.
-     * Using the class like so: $a = json_encode(new Transaction($txnarray), JSON_PRETTY_PRINT)
-     * Will produce json data that the gateway should understand.
-     */
-    public function __construct(array $array) {
-        $this->array = $array;
-    }
-
-    public function jsonSerialize() {
-        return $this->array;
     }
 
 }
