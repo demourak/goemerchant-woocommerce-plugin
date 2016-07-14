@@ -7,7 +7,7 @@ require_once 'debug.php';
  *
  * @author Kevin DeMoura
  */
-class WC_Gateway_goe extends WC_Payment_Gateway {
+class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
     /**
      * Initialize the gateway
@@ -16,7 +16,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         $this->id                 = 'goe';
         $this->icon               = false;
         $this->has_fields         = true; // checkout fields
-        $this->supports           = array( 'default_credit_card_form' ); // show WooCommerce's default form on checkout
+        $this->supports           = array( '' ); 
         $this->method_title       = __( 'goEmerchant', 'wc-goe' );
         $this->method_description =
                 __( 'Process transactions using the goEmerchant gateway. '
@@ -25,6 +25,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
         $this->init_form_fields();
         $this->init_settings();
+        //$this->payment_fields();
+        $this->currentUserID = wp_get_current_user()->user_login;
 
         $title                    = $this->get_option( 'title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
@@ -34,6 +36,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
+        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
     }
 
     /**
@@ -84,6 +87,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
             ),
         );
     }
+    
+    public function update_user_id($custData) {
+        $this->currentUserID = $custData['user_login'];
+        check("Cust Data: " . print_r($custData, true));
+        return $custData;
+    }
 
     /**
      * Output for the order received page.
@@ -122,7 +131,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * @return void
      */
     public function process_payment($order_id) {
-
+        
         $rgw = new RestGateway();
 
         $order = wc_get_order($order_id); // object for woocommerce order
@@ -164,6 +173,21 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
         );
 
         $transactionData = array_merge($merchant_info, $cc, $cust_info); // combine all into one array
+        
+        $saveCard = $_POST['goe-save-card'] == 'on';
+        if ($saveCard) {
+            $currentUser = $this->currentUserID; //debug
+            check("Username: " . $currentUser); //debug
+            $vaultKey = array(
+                'vaultKey' => 'g0e_' . $this->currentUserID,
+                'cardType' => $cc['cardNumber']
+            );
+            $vaultData = array_merge($transactionData, $vaultKey);
+            $rgw->createVaultCreditCardRecord(
+                    $vaultData, NULL, NULL);
+            check("Vault result: " . print_r($rgw->Result, true));
+        }
+        
         $authOnly = $this->get_option('auth-only') == 'yes';
         if ($authOnly) {
             $rgw->createAuth(
@@ -189,12 +213,139 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
 
         $order->reduce_order_stock();
         WC()->cart->empty_cart();
-
+        $post_id = $this->save_card();
+        check("Card: " . print_r($this->get_saved_cards(), true));
+        check("Meta: " . get_post_meta($post_id));
+        
         // Return thank you redirect
         return array(
             'result' => 'success',
             'redirect' => $this->get_return_url($order)
         );
+    }
+    
+    /**
+     * Return credit card type if number is valid
+     * @return string
+     * @param $number string
+     * */
+    function cardType($number) {
+        $number = preg_replace('/[^\d]/', '', $number);
+        if (preg_match('/^3[47][0-9]{13}$/', $number)) {
+            return 'amex';
+        } elseif (preg_match('/^3(?:0[0-5]|[68][0-9])[0-9]{11}$/', $number)) {
+            return 'dc';
+        } elseif (preg_match('/^6(?:011|5[0-9][0-9])[0-9]{12}$/', $number)) {
+            return 'disc';
+        } elseif (preg_match('/^(?:2131|1800|35\d{3})\d{11}$/', $number)) {
+            return 'JCB';
+        } elseif (preg_match('/^5[1-5][0-9]{14}$/', $number)) {
+            return 'mc';
+        } elseif (preg_match('/^4[0-9]{12}(?:[0-9]{3})?$/', $number)) {
+            return 'visa';
+        } else {
+            return 'Unknown';
+        }
+    }
+
+    /**
+     * Outputs fields for entering credit card information.
+     * @since 2.6.0
+     */
+     public function form() {
+        wp_enqueue_script( 'wc-credit-card-form' );
+
+        $fields = array();
+
+        $cvc_field = '<p class="form-row form-row-last">
+            <label for="' . esc_attr( $this->id ) . '-card-cvc">' . __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label>
+            <input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
+        </p>';
+
+        $default_fields = array(
+            'card-number-field' => '<p class="form-row form-row-wide">
+                <label for="' . esc_attr( $this->id ) . '-card-number">' . __( 'Card Number', 'woocommerce' ) . ' <span class="required">*</span></label>
+                <input id="' . esc_attr( $this->id ) . '-card-number" class="input-text wc-credit-card-form-card-number" type="text" maxlength="20" autocomplete="off" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" ' . $this->field_name( 'card-number' ) . ' />
+            </p>',
+            'card-expiry-field' => '<p class="form-row form-row-first">
+                <label for="' . esc_attr( $this->id ) . '-card-expiry">' . __( 'Expiry (MM/YY)', 'woocommerce' ) . ' <span class="required">*</span></label>
+                <input id="' . esc_attr( $this->id ) . '-card-expiry" class="input-text wc-credit-card-form-card-expiry" type="text" autocomplete="off" placeholder="' . esc_attr__( 'MM / YY', 'woocommerce' ) . '" ' . $this->field_name( 'card-expiry' ) . ' />
+            </p>'
+        );
+
+        if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' ) ) {
+            $default_fields['card-cvc-field'] = $cvc_field;
+        }
+        
+        array_push(
+                $default_fields, '<p class="form-row form-row-wide hide-if-token">
+				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card for future use? (Requires account)', 'woocommerce-cardpay-goe') . ' </label>
+				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
+			</p>'
+        );
+
+        $fields = wp_parse_args( $fields, apply_filters( 'woocommerce_credit_card_form_fields', $default_fields, $this->id ) );
+        ?>
+
+        <fieldset id="wc-<?php echo esc_attr( $this->id ); ?>-cc-form" class='wc-credit-card-form wc-payment-form'>
+            <?php do_action( 'woocommerce_credit_card_form_start', $this->id ); ?>
+            <?php
+                foreach ( $fields as $field ) {
+                    echo $field;
+                }
+            ?>
+            <?php do_action( 'woocommerce_credit_card_form_end', $this->id ); ?>
+            <div class="clear"></div>
+        </fieldset>
+        <?php
+
+        if ( $this->supports( 'credit_card_form_cvc_on_saved_method' ) ) {
+            echo '<fieldset>' . $cvc_field . '</fieldset>';
+        }
+    }
+    
+    /**
+     * save_card function.
+     *
+     * @access public
+     * @param Object $response
+     * @return void
+     */
+    public function save_card() {
+
+        $current_cards = count($this->get_saved_cards());
+        $card = array(
+            'post_type' => 'goe_credit_card',
+            'post_title' => sprintf(__('Token %s &ndash; %s', 'woocommerce-cardpay-goe'), $response->profileResponse->customerPaymentProfileIdList[0], strftime(_x('%b %d, %Y @ %I:%M %p', 'Token date parsed by strftime', 'woocommerce-cardpay-goe'))),
+            'post_content' => '',
+            'post_status' => 'publish',
+            'ping_status' => 'closed',
+            'post_author' => get_current_user_id(),
+            'post_password' => uniqid('card_'),
+            'post_category' => '',
+        );
+        $post_id = wp_insert_post($card);
+        $card_meta = array(
+            'customer_id' => '',
+            'payment_id' => '',
+            'cc_last4' => '',
+            'expiry' => '',
+            'cardtype' => '',
+            'is_default' => '',
+        );
+        add_post_meta($post_id, '_goe_card', $card_meta);
+        return $post_id;
+    }
+
+    private function get_saved_cards() {
+        $args = array(
+            'post_type' => 'goe_credit_card',
+            'author' => get_current_user_id(),
+            'orderby' => 'post_date',
+            'order' => 'ASC',
+        );
+        $cards = get_posts($args);
+        return $cards;
     }
 
     /**
@@ -206,8 +357,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
      * otherwise returns false.
      */
     function get_error_string($restGateway){
-        $result = $restGateway->Result;
-        $result_str = "Result: " . print_r($result, true);
         $errorString = "";
 
         if ($result["isError"] == TRUE) {
@@ -252,7 +401,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway {
                         break 2;
                 }
             }
-            return $errorString . "<br> . $result_str";
+            return $errorString;
         }
 
         //check for validation errors
@@ -317,6 +466,20 @@ class RestGateway {
             call_user_func($callBackSuccess);
         }
     }
+    
+    public function createVaultCreditCardRecord($transactionData, $callBackSuccess, $callBackFailure) {
+        $apiRequest = $this->apiUrl . "VaultCreateCCRecord";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->status >= 500 && $this->status <= 599) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 400 && $this->status <= 499) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->status >= 200 && $this->status <= 299) {
+            call_user_func($callBackSuccess);
+        }
+    }
 
     protected function performRequest($data, $apiRequest, $callBackSuccess = NULL, $callBackFailure = NULL){
             /**
@@ -335,7 +498,6 @@ class RestGateway {
           $this->Result = array();
           $jsondata = json_encode($data, JSON_PRETTY_PRINT);
           $jsondata = utf8_encode($jsondata);
-          check("jsondata: " . print_r($jsondata, true));
           $curl_handle=curl_init();
           curl_setopt($curl_handle, CURLOPT_URL, $url);
           curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
