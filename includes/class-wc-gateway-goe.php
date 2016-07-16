@@ -26,7 +26,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->init_form_fields();
         $this->init_settings();
         //$this->payment_fields();
-        $this->currentUserID = wp_get_current_user()->user_login;
+        $this->currentUserID = wp_get_current_user()->ID;
 
         $title                    = $this->get_option( 'title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
@@ -36,7 +36,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
-        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
+//        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
     }
 
     /**
@@ -88,11 +88,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
     }
     
-    public function update_user_id($custData) {
-        $this->currentUserID = $custData['user_login'];
-        check("Cust Data: " . print_r($custData, true));
-        return $custData;
-    }
+//    public function update_user_id($custData) {
+//        $this->currentUserID = $custData['user_login'];
+//        check("Cust Data: " . print_r($custData, true));
+//        return $custData;
+//    }
 
     /**
      * Output for the order received page.
@@ -176,8 +176,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         $saveCard = $_POST['goe-save-card'] == 'on';
         if ($saveCard) {
-            $currentUser = $this->currentUserID; //debug
-            check("Username: " . $currentUser); //debug
             $vaultKey = array(
                 'vaultKey' => 'g0e_' . $this->currentUserID,
                 'cardType' => $cc['cardNumber']
@@ -185,7 +183,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $vaultData = array_merge($transactionData, $vaultKey);
             $rgw->createVaultCreditCardRecord(
                     $vaultData, NULL, NULL);
-            check("Vault result: " . print_r($rgw->Result, true));
         }
         
         $authOnly = $this->get_option('auth-only') == 'yes';
@@ -214,8 +211,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $order->reduce_order_stock();
         WC()->cart->empty_cart();
         $post_id = $this->save_card();
-        check("Card: " . print_r($this->get_saved_cards(), true));
-        check("Meta: " . get_post_meta($post_id));
         
         // Return thank you redirect
         return array(
@@ -277,12 +272,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $default_fields['card-cvc-field'] = $cvc_field;
         }
         
-        array_push(
-                $default_fields, '<p class="form-row form-row-wide hide-if-token">
-				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card for future use? (Requires account)', 'woocommerce-cardpay-goe') . ' </label>
+        if (is_user_logged_in()) {
+            array_push(
+                    $default_fields, '<p class="form-row form-row-wide hide-if-token">
+				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card to My Account?', 'woocommerce-cardpay-goe') . ' </label>
 				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
 			</p>'
-        );
+            );
+        }
 
         $fields = wp_parse_args( $fields, apply_filters( 'woocommerce_credit_card_form_fields', $default_fields, $this->id ) );
         ?>
