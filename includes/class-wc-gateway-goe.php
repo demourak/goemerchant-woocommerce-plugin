@@ -177,12 +177,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $saveCard = $_POST['goe-save-card'] == 'on';
         if ($saveCard) {
             $vaultKey = array(
-                'vaultKey' => 'g0e_' . $this->currentUserID,
+                'vaultKey' => 'wc_g0e_' . $this->currentUserID,
                 'cardType' => $cc['cardNumber']
             );
             $vaultData = array_merge($transactionData, $vaultKey);
-            $rgw->createVaultCreditCardRecord(
-                    $vaultData, NULL, NULL);
+            $this->save_cc_to_vault($vaultData, $rgw);
         }
         
         $authOnly = $this->get_option('auth-only') == 'yes';
@@ -196,7 +195,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $error_msg = $this->get_error_string($rgw);
         if ($error_msg) {
-            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg . "<br><br>" . "Transaction data: " . print_r($transactionData, true), 'error');
+            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
             $order->update_status( 'failed' );
             return;
         }
@@ -210,13 +209,26 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $order->reduce_order_stock();
         WC()->cart->empty_cart();
-        $post_id = $this->save_card();
         
         // Return thank you redirect
         return array(
             'result' => 'success',
             'redirect' => $this->get_return_url($order)
         );
+    }
+    
+    function save_cc_to_vault($requestData, $restGW) {
+        $restGW->createVaultCreditCardRecord(
+                    $requestData, NULL, NULL);
+        $result = $restGW->Result;
+        if ($result["isError"] == TRUE) {
+            foreach ($result["errorMessages"] as $index => $err) {
+                if ($err == "Credit card account already exists") {
+                    wc_add_notice( 'Unable to save credit card: Payment method already exists. To modify, please update in My Account.' , 'notice');
+                }
+            }
+        }
+        return;
     }
     
     /**
@@ -300,50 +312,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             echo '<fieldset>' . $cvc_field . '</fieldset>';
         }
     }
-    
-    /**
-     * save_card function.
-     *
-     * @access public
-     * @param Object $response
-     * @return void
-     */
-    public function save_card() {
-
-        $current_cards = count($this->get_saved_cards());
-        $card = array(
-            'post_type' => 'goe_credit_card',
-            'post_title' => sprintf(__('Token %s &ndash; %s', 'woocommerce-cardpay-goe'), $response->profileResponse->customerPaymentProfileIdList[0], strftime(_x('%b %d, %Y @ %I:%M %p', 'Token date parsed by strftime', 'woocommerce-cardpay-goe'))),
-            'post_content' => '',
-            'post_status' => 'publish',
-            'ping_status' => 'closed',
-            'post_author' => get_current_user_id(),
-            'post_password' => uniqid('card_'),
-            'post_category' => '',
-        );
-        $post_id = wp_insert_post($card);
-        $card_meta = array(
-            'customer_id' => '',
-            'payment_id' => '',
-            'cc_last4' => '',
-            'expiry' => '',
-            'cardtype' => '',
-            'is_default' => '',
-        );
-        add_post_meta($post_id, '_goe_card', $card_meta);
-        return $post_id;
-    }
-
-    private function get_saved_cards() {
-        $args = array(
-            'post_type' => 'goe_credit_card',
-            'author' => get_current_user_id(),
-            'orderby' => 'post_date',
-            'order' => 'ASC',
-        );
-        $cards = get_posts($args);
-        return $cards;
-    }
 
     /**
      * Generates a string to show the customer if an error is encountered when
@@ -355,6 +323,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     function get_error_string($restGateway){
         $errorString = "";
+        $result = $restGateway->Result;
 
         if ($result["isError"] == TRUE) {
             $errorString = "There was an error processing your request.<br>";
