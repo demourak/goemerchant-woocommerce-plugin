@@ -36,6 +36,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
+        add_action( 'woocommerce_after_my_account', array( $this, 'render_credit_cards' ) );
 //        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
     }
 
@@ -284,7 +285,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $default_fields['card-cvc-field'] = $cvc_field;
         }
         
-        if (is_user_logged_in()) {
+        if (is_user_logged_in() && !is_account_page()) {
             array_push(
                     $default_fields, '<p class="form-row form-row-wide hide-if-token">
 				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card to My Account?', 'woocommerce-cardpay-goe') . ' </label>
@@ -381,6 +382,26 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         return FALSE; // no error
     }
+    
+    public function render_credit_cards() {
+        if (!is_user_logged_in()) {
+            return;
+        }
+        
+        $pageID = get_option( 'woocommerce_myaccount_page_id' );
+        $my_account_url = get_permalink( $pageID );
+        
+        echo "<form action=\"{$my_account_url}\" method=\"post\">";
+
+        $this->form();
+
+        echo <<<TABLE
+                <input type="submit" value="Add">
+</form>
+TABLE;
+        check(print_r($_POST, true));
+    }
+
 }
 
 class RestGateway {
