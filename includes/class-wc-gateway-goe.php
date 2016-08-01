@@ -88,12 +88,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             ),
         );
     }
-    
-//    public function update_user_id($custData) {
-//        $this->currentUserID = $custData['user_login'];
-//        check("Cust Data: " . print_r($custData, true));
-//        return $custData;
-//    }
 
     /**
      * Output for the order received page.
@@ -156,14 +150,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST["goe-use-saved-card"] == "yes";
+        $saveCard = $_POST['goe-save-card'] == 'on';
         
-        if(!$this->get_cc() && !$useSavedCard) {
-            wc_add_notice(__('Payment error: ', 'woothemes') . 
-                    "Some required fields (*) are missing. Please check below and try again.", 'error');
-            return;
-        }
-        
-        $transactionData = array_merge($this->get_merchant_info(), $this->get_cc(), $cust_info);
+        $transactionData = array_merge($this->get_merchant_info(), $cust_info);
         
         //process saved or new card based on input
         if ($useSavedCard) {
@@ -178,10 +167,22 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $rgw->createSaleUsing1stPayVault($vaultTransactionData);
             }
         } else {
+            if (!$this->get_cc()) {
+                wc_add_notice(__('Payment error: ', 'woothemes') .
+                        "Some required fields (*) are missing. Please check below and try again.", 'error');
+                return;
+            }
+            else {
+                $saleTransactionData = array_merge($transactionData, $this->get_cc());
+            }
             if ($authOnly) {
-                $rgw->createAuth($transactionData);
+                $rgw->createAuth($saleTransactionData);
             } else {
-                $rgw->createSale($transactionData);
+                $rgw->createSale($saleTransactionData);
+            }
+            if ($saveCard && !$useSavedCard) {
+                $vaultData = array_merge($saleTransactionData, $this->get_vault_info());
+                $this->save_cc_to_vault($vaultData, $rgw);
             }
         }
 
@@ -190,12 +191,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
             $order->update_status( 'failed' );
             return;
-        }
-        
-        $saveCard = $_POST['goe-save-card'] == 'on';
-        if ($saveCard && !$useSavedCard) {
-            $vaultData = array_merge($transactionData, $this->get_vault_info());
-            $this->save_cc_to_vault($vaultData, $rgw);
         }
 
         if ($authOnly) {
@@ -306,13 +301,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     
     /**
      * Get array with credit card info to be sent to REST gateway
-     * @return array Array of cc info, or FALSE if any field is blank.
+     * @return array Array of cc info, or FALSE if any required field is blank.
      */
     function get_cc() {
         if (
                 $_POST['goe-card-number'] == "" ||
-                $_POST['goe-card-expiry'] == "" ||
-                (isset($_POST['goe-card-cvc']) && $_POST['goe-card-cvc'] == "")
+                $_POST['goe-card-expiry'] == ""
             ) {
             return FALSE;
         }
