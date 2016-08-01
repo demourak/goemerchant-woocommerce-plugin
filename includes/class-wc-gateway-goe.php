@@ -315,11 +315,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     
     /**
      * 
-     * @return string HTML for a drop down of each existing card
+     * @return string HTML for a drop down of each existing card, or null if 
+     * the list is empty, the user is not logged in, or if this method is run
+     * on a page other than the "My Account" page.
      */
     function get_existing_cards_menu() {
         if (!is_user_logged_in() || is_account_page()) {
-            return "";
+            return FALSE;
         }
         $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >';
         // query for cards using REST
@@ -327,6 +329,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $data = array_merge($this->get_merchant_info(), $this->get_vault_info(TRUE));
         $rgw->queryVaultForCreditCardRecords($data, NULL, NULL);
         $result = $rgw->Result;
+        
+        if (empty($result['data']['creditCardRecords'])) {
+            return FALSE;
+        }
         
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
             $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
@@ -374,8 +380,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             <input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
         </p>';
         
-        $existingCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="yes" checked><h2>Use Existing Card</h2><br>' : '';
-        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="no"><h2>Use New Card</h2>' : '';
+        $existingCardChoice = (
+                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="yes"><h2>Use Existing Card</h2><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="no" checked><h2>Use New Card</h2>' : '';
         
         $default_fields = array(
             'newcard-radio-button2' => $newCardChoice,
