@@ -154,10 +154,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'transactionAmount' => $order->get_total()
         );
         
-        $transactionData = array_merge($this->get_merchant_info(), $this->get_cc(), $cust_info);
-        
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST["goe-use-saved-card"] == "yes";
+        
+        if(!$this->get_cc() && !$useSavedCard) {
+            wc_add_notice(__('Payment error: ', 'woothemes') . 
+                    "Some required fields (*) are missing. Please check below and try again.", 'error');
+            return;
+        }
+        
+        $transactionData = array_merge($this->get_merchant_info(), $this->get_cc(), $cust_info);
         
         //process saved or new card based on input
         if ($useSavedCard) {
@@ -300,9 +306,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     
     /**
      * Get array with credit card info to be sent to REST gateway
-     * @return array
+     * @return array Array of cc info, or FALSE if any field is blank.
      */
     function get_cc() {
+        if (
+                $_POST['goe-card-number'] == "" ||
+                $_POST['goe-card-expiry'] == "" ||
+                (isset($_POST['goe-card-cvc']) && $_POST['goe-card-cvc'] == "")
+            ) {
+            return FALSE;
+        }
+            
         $ccnum = str_replace(array('-', ' '), '', $_POST['goe-card-number']);
         return array(
             'cardNumber'   => $ccnum,
@@ -335,7 +349,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
-            $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
+            $cardType = $this->cardTypePretty($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
+            $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$cardType} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
         }
         
         $html .= "</select><br><br>";
@@ -343,7 +358,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     }
     
     /**
-     * Return credit card type if number is valid
+     * Return credit card type if number is valid.
      * @return string
      * @param $number string
      * */
@@ -361,6 +376,28 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return 'mastercard';
         } elseif (preg_match('/^4[0-9]{12}(?:[0-9]{3})?$/', $number)) {
             return 'visa';
+        } else {
+            return 'Unknown';
+        }
+    }
+    
+        function cardTypePretty($number) {
+        $number = preg_replace('/[^\d]/', '', $number);
+        if (
+                preg_match('/^3[47][0-9]{13}$/', $number) || 
+                substr($number, 0, 2) == "34" || 
+                substr($number, 0, 2) == "37") {
+            return 'American Express';
+        } elseif (preg_match('/^3(?:0[0-5]|[68][0-9])[0-9]{11}$/', $number)) {
+            return 'Diner\'s Club';
+        } elseif (preg_match('/^6(?:011|5[0-9][0-9])[0-9]{12}$/', $number)) {
+            return 'Discover';
+        } elseif (preg_match('/^(?:2131|1800|35\d{3})\d{11}$/', $number)) {
+            return 'JCB';
+        } elseif (preg_match('/^5[1-5][0-9]{14}$/', $number)) {
+            return 'MasterCard';
+        } elseif (preg_match('/^4[0-9]{12}(?:[0-9]{3})?$/', $number)) {
+            return 'Visa';
         } else {
             return 'Unknown';
         }
@@ -396,7 +433,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             </p>'
         );
 
-        if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' ) ) {
+        if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' && !is_account_page()) ) {
             $default_fields['card-cvc-field'] = $cvc_field;
         }
         
@@ -510,9 +547,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return;
         }
         
-        if (isset($_POST['goe-card-number'], $_POST['goe-card-expiry'], $_POST['goe-card-cvc'])) {
-            $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
-            $this->save_cc_to_vault($vaultRequest, new RestGateway());
+        if (isset($_POST['goe-card-number'], $_POST['goe-card-expiry'])) {
+            if ($this->get_cc()) {
+
+                $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
+                $this->save_cc_to_vault($vaultRequest, new RestGateway());
+            }
+            else {
+                wc_print_notice(__('Payment error: ', 'woothemes') .
+                        "Some required fields (*) are missing. Please check below and try again.", 'error');
+            }
         }
         elseif (isset($_POST["goe-delete-card"])){
             $this->delete_cc_from_vault($_POST["goe-delete-card"]);
@@ -541,9 +585,11 @@ BUTTON;
         
         echo "<h2>Saved Credit Cards</h2>";
         echo "<form action=\"{$my_account_url}\" method=\"post\"><table border=\"1\">";
-        echo "<tr><th>Card Number</th><th>Expiry</th></tr>";
+        echo "<tr><th>Card Type</th><th>Card Number</th><th>Expiry</th></tr>";
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
+            $cardType = $this->cardTypePretty($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
             echo "<tr>
+                <td>{$cardType}</td>
                 <td>************{$ccrec['cardNoLast4']}</td>
                 <td>{$ccrec['cardExpMM']} / {$ccrec['cardExpYY']}</td>
                 <td><button type=\"submit\" name=\"goe-delete-card\" value=\"{$ccrec['id']}\">Delete</button></td>
