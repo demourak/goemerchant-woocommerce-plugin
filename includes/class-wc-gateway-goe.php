@@ -36,7 +36,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
-        add_action( 'woocommerce_after_my_account', array( $this, 'render_credit_cards' ) );
+        add_action( 'woocommerce_after_my_account', array( $this, 'on_my_account_load' ) );
 //        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
     }
 
@@ -132,8 +132,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return void
      */
     public function process_payment($order_id) {
-        check(print_r($_POST, true));
-        
         $rgw = new RestGateway();
 
         $order = wc_get_order($order_id);
@@ -143,7 +141,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             // Set order ID to match woocommerce order number
             'orderId'           => $order->get_order_number(),
             // Set IP Address for fraud screening
-            //'ipAddress'         => WC_Geolocation::get_ip_address(),
+            'ipAddress'         => WC_Geolocation::get_ip_address(),
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
             'ownerCountry'      => $order->billing_country,
@@ -156,20 +154,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'transactionAmount' => $order->get_total()
         );
         
-        //$ip = file_get_contents('https://api.ipify.org');
-
-
         $transactionData = array_merge($this->get_merchant_info(), $this->get_cc(), $cust_info);
-        
-        $saveCard = $_POST['goe-save-card'] == 'on';
-        if ($saveCard) {
-            $vaultData = array_merge($transactionData, $this->get_vault_info());
-            $this->save_cc_to_vault($vaultData, $rgw);
-        }
         
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST["goe-use-saved-card"] == "yes";
         
+        //process saved or new card based on input
         if ($useSavedCard) {
             $vaultTransactionData = array_merge(
                                 $transactionData, 
@@ -195,6 +185,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $order->update_status( 'failed' );
             return;
         }
+        
+        $saveCard = $_POST['goe-save-card'] == 'on';
+        if ($saveCard && !$useSavedCard) {
+            $vaultData = array_merge($transactionData, $this->get_vault_info());
+            $this->save_cc_to_vault($vaultData, $rgw);
+        }
 
         if ($authOnly) {
             $order->update_status( 'on-hold', __( 'Payment authorized. Settle to receive funds.', 'wc-goe') );
@@ -213,6 +209,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
     }
     
+    /**
+     * Save credit card to the signed in user's vault.
+     * @param array $requestData data array to send to REST gateway
+     * @param type $restGW 
+     * @return type
+     */
     function save_cc_to_vault($requestData, $restGW) {
         $restGW->createVaultCreditCardRecord(
                 $requestData, NULL, NULL);
@@ -256,12 +258,22 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return;
     }
     
+    /**
+     * Delete cc from this user's vault.
+     * 
+     * @param int $ccid The vault ID for the cc record.
+     */
     function delete_cc_from_vault($ccid) {
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), $this->get_vault_info(), array("id" => $ccid));
         $rgw->deleteVaultCreditCardRecord($data);
     }
 
+    /**
+     * 
+     * @param type $isQuery
+     * @return array Array with a single item, either the vaultKey or queryVaultKey
+     */
     function get_vault_info($isQuery = FALSE) {
         if ($isQuery) {
             return array(
@@ -281,12 +293,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $merchant_info = array(
             'merchantKey' => $this->gwid,
             'processorId' => $this->pid
-            //'ipAddress'   => $ip
         );
         
         return $merchant_info;
     }
     
+    /**
+     * Get array with credit card info to be sent to REST gateway
+     * @return array
+     */
     function get_cc() {
         $ccnum = str_replace(array('-', ' '), '', $_POST['goe-card-number']);
         return array(
@@ -298,8 +313,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
     }
     
+    /**
+     * 
+     * @return string HTML for a drop down of each existing card
+     */
     function get_existing_cards_menu() {
-        if (!is_user_logged_in()) {
+        if (!is_user_logged_in() || is_account_page()) {
             return "";
         }
         $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >';
@@ -313,7 +332,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
         }
         
-        $html .= "</select>";
+        $html .= "</select><br><br>";
         return $html;
     }
     
@@ -340,10 +359,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return 'Unknown';
         }
     }
-    
-    function cardTypePretty($ccnumber) {
-        
-    }
 
     /**
      * Outputs fields for entering credit card information.
@@ -359,12 +374,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             <input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
         </p>';
         
-        $choice1 = is_user_logged_in() ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="yes" checked><h2>Use Existing Card</h2><br>' : '';
-        $choice2 = is_user_logged_in() ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="no" checked><h2>Use New Card</h2>' : '';
+        $existingCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="yes" checked><h2>Use Existing Card</h2><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" value="no"><h2>Use New Card</h2>' : '';
+        
         $default_fields = array(
-            'newcard-radio-button1' => $choice1,
-            'saved_card_menu' => $this->get_existing_cards_menu() . "<br><br>",
-            'newcard-radio-button2' => $choice2,
+            'newcard-radio-button2' => $newCardChoice,
             'card-number-field' => '<p class="form-row form-row-wide">
                 <label for="' . esc_attr( $this->id ) . '-card-number">' . __( 'Card Number', 'woocommerce' ) . ' <span class="required">*</span></label>
                 <input id="' . esc_attr( $this->id ) . '-card-number" class="input-text wc-credit-card-form-card-number" type="text" maxlength="20" autocomplete="off" placeholder="&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull;" ' . $this->field_name( 'card-number' ) . ' />
@@ -381,10 +395,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         if (is_user_logged_in() && !is_account_page()) {
             array_push(
-                    $default_fields, '<p class="form-row form-row-wide">
+                    $default_fields,
+                    '<p class="form-row form-row-wide">
 				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card to My Account?', 'woocommerce-cardpay-goe') . ' </label>
 				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
-			</p>'
+			</p>',
+                    $existingCardChoice,
+                    $this->get_existing_cards_menu()
             );
         }
 
@@ -477,12 +494,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return FALSE; // no error
     }
     
-    function render_billing_address_form() {
-        include "billing_form.html";
-    }
-    
-    public function render_credit_cards() {
-        echo print_r($_POST, true);
+    public function on_my_account_load() {
         
         $pageID = get_option( 'woocommerce_myaccount_page_id' );
         $my_account_url = get_permalink( $pageID );
@@ -492,7 +504,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         if (isset($_POST['goe-card-number'], $_POST['goe-card-expiry'], $_POST['goe-card-cvc'])) {
-            //check(print_r($_POST, true));
             $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
             $this->save_cc_to_vault($vaultRequest, new RestGateway());
         }
@@ -506,8 +517,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         echo "<h2>Add New Credit Card</h2>";
 
         $this->form();
-        
-        //$this->render_billing_address_form(); // Only collect billing address on checkout
 
         echo <<<BUTTON
                 <input type="submit" value="Add Card">
