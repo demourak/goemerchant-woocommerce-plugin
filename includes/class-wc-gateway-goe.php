@@ -37,7 +37,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
         add_action( 'woocommerce_after_my_account', array( $this, 'on_my_account_load' ) );
-//        add_filter( 'woocommerce_new_customer_data', 'update_user_id');
     }
 
     /**
@@ -77,6 +76,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'title' => __( 'Processor ID', 'wc-goe' ),
                 'type'  => 'text',
             ),
+            'require-cvv-saved' => array(
+                'title'   => __( 'Require cVV on Saved Payment Method Checkout', 'wc-goe' ),
+                'type'    => 'checkbox',
+                'label'   => __( 'If enabled, users must enter their card\'s cVV code when checking out with a saved card.', 'wc-goe' ),
+                'default' => 'yes'
+            ),
             'auth-only' => array(
                 'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
@@ -85,7 +90,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         . ' Visit our <a href="http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch">support page</a>'
                         . ' for a walkthrough of settling transactions.', 'wc-goe' ),
                 'default' => 'no'
-            ),
+            )
         );
     }
 
@@ -126,6 +131,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return void
      */
     public function process_payment($order_id) {
+        check(print_r($_POST, true));
         $rgw = new RestGateway();
 
         $order = wc_get_order($order_id);
@@ -148,9 +154,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'transactionAmount' => $order->get_total()
         );
         
-        $authOnly = $this->get_option('auth-only') == 'yes';
+        $authOnly     = $this->get_option('auth-only') == 'yes';
+        $reqCvvSaved  = $this->get_option('require-cvv-saved') == 'yes';
         $useSavedCard = $_POST["goe-use-saved-card"] == "yes";
-        $saveCard = $_POST['goe-save-card'] == 'on';
+        $saveCard     = $_POST['goe-save-card'] == 'on';
         
         $transactionData = array_merge($this->get_merchant_info(), $cust_info);
         
@@ -160,6 +167,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                                 $transactionData, 
                                 $this->get_vault_info(), 
                                 array('vaultId' => $_POST['goe-selected-card']));
+            if ($reqCvvSaved) { // add cvv to vault sale if required
+                $savedCardCvv = $_POST['goe-card-cvc-saved'];
+                if ($savedCardCvv == "") {
+                    $this->add_missing_fields_notice();
+                    return;
+                }
+                $vaultTransactionData = array_merge(
+                        $vaultTransactionData, 
+                        array('cVV' => $savedCardCvv));
+            }
             if ($authOnly) {
                 $rgw->createAuthUsing1stPayVault($vaultTransactionData);
             }
@@ -210,6 +227,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
     }
     
+    function add_missing_fields_notice() {
+        wc_add_notice(__('Payment error: ', 'woothemes') .
+                "Some required fields (*) are missing. Please check below and try again.", 'error');
+        return;
+    }
+
     /**
      * Save credit card to the signed in user's vault.
      * @param array $requestData data array to send to REST gateway
@@ -432,6 +455,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         if (is_user_logged_in() && !is_account_page()) {
+                $cvc_field_saved = $this->get_option('require-cvv-saved') == 'yes' ? 
+                        '<p class="form-row form-row-last"><label for="' . esc_attr( $this->id ) . '-card-cvc-saved">' . 
+                        __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label><input id="' . 
+                        esc_attr( $this->id ) . '-card-cvc-saved" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . 
+                        esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
+                        ' style="width:100px" /></p>' :"";
+            
             array_push(
                     $default_fields,
                     '<p class="form-row form-row-wide">
@@ -439,7 +469,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
 			</p>',
                     $existingCardChoice,
-                    $this->get_existing_cards_menu()
+                    $this->get_existing_cards_menu(),
+                    $cvc_field_saved
             );
         }
 
@@ -532,6 +563,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return FALSE; // no error
     }
     
+    /**
+     * Handles both submitting and interepreting user actions on My Account page
+     */
     public function on_my_account_load() {
         
         $pageID = get_option( 'woocommerce_myaccount_page_id' );
@@ -569,6 +603,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 BUTTON;
     }
     
+    /**
+     * Print table to display user's saved cards.
+     */
     function print_cc_table() {
         $pageID = get_option( 'woocommerce_myaccount_page_id' );
         $my_account_url = get_permalink( $pageID );
