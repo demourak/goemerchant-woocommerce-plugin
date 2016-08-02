@@ -131,7 +131,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return void
      */
     public function process_payment($order_id) {
-        check(print_r($_POST, true));
         $rgw = new RestGateway();
 
         $order = wc_get_order($order_id);
@@ -184,7 +183,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $rgw->createSaleUsing1stPayVault($vaultTransactionData);
             }
         } else {
-            if (!$this->get_cc()) {
+            if (!$this->get_cc() || $this->is_cvv_blank()) {
                 $this->add_missing_fields_notice();
                 return;
             }
@@ -352,6 +351,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'cVV'          => $_POST['goe-card-cvc'],
             'cardType'     => $this->cardType($ccnum)
         );
+    }
+    
+    function is_cvv_blank() {
+        return $_POST['goe-card-cvc'] == "";
+    }
+    
+    function is_cvv_saved_blank() {
+        return $_POST['goe-card-cvc-saved'] == "";
     }
     
     /**
