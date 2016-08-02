@@ -185,8 +185,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         } else {
             if (!$this->get_cc()) {
-                wc_add_notice(__('Payment error: ', 'woothemes') .
-                        "Some required fields (*) are missing. Please check below and try again.", 'error');
+                $this->add_missing_fields_notice();
                 return;
             }
             else {
@@ -227,17 +226,28 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
     }
     
+    /**
+     * Add an error message to session 
+     */
     function add_missing_fields_notice() {
         wc_add_notice(__('Payment error: ', 'woothemes') .
                 "Some required fields (*) are missing. Please check below and try again.", 'error');
         return;
     }
+    
+    /**
+     * Print error message immediately
+     */
+    function print_missing_fields_notice() {
+        wc_print_notice(__('Payment error: ', 'woothemes') .
+                "Some required fields (*) are missing. Please check below and try again.", 'error');
+        return;
+    }
 
     /**
-     * Save credit card to the signed in user's vault.
+     * Save credit card to the signed-in user's vault.
      * @param array $requestData data array to send to REST gateway
-     * @param type $restGW 
-     * @return type
+     * @param type $restGW
      */
     function save_cc_to_vault($requestData, $restGW) {
         $restGW->createVaultCreditCardRecord(
@@ -377,7 +387,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     /**
      * Return credit card type if number is valid.
      * @return string
-     * @param $number string
+     * @param $number string The credit card number in full.
      * */
     function cardType($number) {
         $number = preg_replace('/[^\d]/', '', $number);
@@ -498,7 +508,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * Generates a string to show the customer if an error is encountered when
      * processing with the given RestGateway object.
      *
-     * @param type $restGateway
+     * @param RestGateway $restGateway gateway object used to process result
      * @return string|boolean Returns error string with line breaks if there is an error,
      * otherwise returns false.
      */
@@ -564,7 +574,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     }
     
     /**
-     * Handles both submitting and interepreting user actions on My Account page
+     * Handles both submitting and interepreting user actions on My Account page.
+     * Should run upon load of My Account page.
      */
     public function on_my_account_load() {
         
@@ -582,8 +593,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $this->save_cc_to_vault($vaultRequest, new RestGateway());
             }
             else {
-                wc_print_notice(__('Payment error: ', 'woothemes') .
-                        "Some required fields (*) are missing. Please check below and try again.", 'error');
+                $this->print_missing_fields_notice();
             }
         }
         elseif (isset($_POST["goe-delete-card"])){
