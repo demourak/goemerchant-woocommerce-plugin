@@ -415,7 +415,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
     
-        function cardTypePretty($number) {
+    function cardTypePretty($number) {
         $number = preg_replace('/[^\d]/', '', $number);
         if (
                 preg_match('/^3[47][0-9]{13}$/', $number) || 
