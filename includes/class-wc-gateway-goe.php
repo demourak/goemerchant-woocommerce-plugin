@@ -76,12 +76,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'title' => __( 'Processor ID', 'wc-goe' ),
                 'type'  => 'text',
             ),
-            'require-cvv-saved' => array(
-                'title'   => __( 'Require cVV on Saved Payment Method Checkout', 'wc-goe' ),
-                'type'    => 'checkbox',
-                'label'   => __( 'If enabled, users must enter their card\'s cVV code when checking out with a saved card.', 'wc-goe' ),
-                'default' => 'yes'
-            ),
             'auth-only' => array(
                 'title'   => __( 'Authorize Only', 'wc-goe' ),
                 'type'    => 'checkbox',
@@ -154,7 +148,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
         
         $authOnly     = $this->get_option('auth-only') == 'yes';
-        $reqCvvSaved  = $this->get_option('require-cvv-saved') == 'yes';
         $useSavedCard = $_POST["goe-use-saved-card"] == "yes";
         $saveCard     = $_POST['goe-save-card'] == 'on';
         
@@ -166,16 +159,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                                 $transactionData, 
                                 $this->get_vault_info(), 
                                 array('vaultId' => $_POST['goe-selected-card']));
-            if ($reqCvvSaved) { // add cvv to vault sale if required
-                $savedCardCvv = $_POST['goe-card-cvc-saved'];
-                if ($savedCardCvv == "") {
-                    $this->add_missing_fields_notice();
-                    return;
-                }
-                $vaultTransactionData = array_merge(
-                        $vaultTransactionData, 
-                        array('cVV' => $savedCardCvv));
+            
+            $savedCardCvv = $_POST['goe-card-cvc-saved'];
+            
+            if ($savedCardCvv == "") {
+                $this->add_missing_fields_notice();
+                return;
             }
+            $vaultTransactionData = array_merge(
+                    $vaultTransactionData, array('cVV' => $savedCardCvv));
             if ($authOnly) {
                 $rgw->createAuthUsing1stPayVault($vaultTransactionData);
             }
@@ -207,16 +199,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $order->update_status( 'failed' );
             return;
         }
-
-        if ($authOnly) {
-            $order->update_status( 'on-hold', __( 'Payment authorized. Settle to receive funds.', 'wc-goe') );
-        }
-        else {
-            $order->update_status( 'processing' );
-        }
-
-        $order->reduce_order_stock();
-        WC()->cart->empty_cart();
+        
+        //handles order stock, mark as processing
+        // pass in refNum as WC transaction_id for possible future refund support
+        // through WC
+        $order->payment_complete($rgw->Result["data"]["referenceNumber"]);
         
         // Return thank you redirect
         return array(
@@ -472,12 +459,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         if (is_user_logged_in() && !is_account_page()) {
-                $cvc_field_saved = $this->get_option('require-cvv-saved') == 'yes' ? 
+                $cvc_field_saved =  
                         '<p class="form-row form-row-last"><label for="' . esc_attr( $this->id ) . '-card-cvc-saved">' . 
                         __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label><input id="' . 
                         esc_attr( $this->id ) . '-card-cvc-saved" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . 
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
-                        ' style="width:100px" /></p>' :"";
+                        ' style="width:100px" /></p>';
             
             array_push(
                     $default_fields,
@@ -561,7 +548,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     default: // Hard error (Payment server unavailable, etc...)
-                        $errorString .= "Please try again later.<br>";
+                        $errorString .= $err . "<br>Please try again later.<br>";
                         break 2;
                 }
             }
@@ -696,6 +683,14 @@ class RestGateway {
         if ($this->status >= 200 && $this->status <= 299) {
             call_user_func($callBackSuccess);
         }
+    }
+    
+    public function createCredit($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
+        $apiRequest = $this->apiUrl . "Credit";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)){call_user_func ($callBackSuccess);}
     }
     
     public function createSaleUsing1stPayVault($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
