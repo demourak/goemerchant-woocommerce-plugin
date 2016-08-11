@@ -42,7 +42,6 @@ class Goemerchant_Plugin {
         }
 
         require_once dirname( __FILE__ ) . '/includes/class-wc-gateway-goe.php';
-        //require_once dirname( __FILE__ ) . '/includes/class-wc-gateway-goe-credit-cards.php';
     }
 
     /**

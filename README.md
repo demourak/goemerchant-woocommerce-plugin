@@ -27,4 +27,5 @@ Brought to you by [Kevin DeMoura] for goemerchant.com.
 == Installation ==
 
 1. Upload the plugin folder to the `/wp-content/plugins/` directory
-1. Activate the plugin through the 'Plugins' menu in WordPress.
+2. Activate the plugin through the 'Plugins' menu in WordPress.
+3. Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerchant
