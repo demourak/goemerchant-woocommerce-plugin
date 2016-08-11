@@ -462,12 +462,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         if (is_user_logged_in() && !is_account_page()) {
-                $cvc_field_saved =  
+                $cvc_field_saved =  $this->get_existing_cards_menu() ?
                         '<p class="form-row form-row-last"><label for="' . esc_attr( $this->id ) . '-card-cvc-saved">' . 
                         __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label><input id="' . 
                         esc_attr( $this->id ) . '-card-cvc-saved" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . 
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
-                        ' style="width:100px" /></p>';
+                        ' style="width:100px" /></p>' : "";
             
             array_push(
                     $default_fields,
