@@ -28,7 +28,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $this->init_form_fields();
         $this->init_settings();
-        //$this->payment_fields();
         $this->currentUserID = wp_get_current_user()->ID;
 
         $title                    = $this->get_option( 'title' );
@@ -551,7 +550,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     default: // Hard error (Payment server unavailable, etc...)
-                        $errorString .= $err . "<br>Please try again later.<br>";
+                        $errorString .= $err;
                         break 2;
                 }
             }

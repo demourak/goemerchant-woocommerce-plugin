@@ -3,7 +3,7 @@
     <type>org.netbeans.modules.php.project</type>
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/php-project/1">
-            <name>goemerchant-gateway</name>
+            <name>goemerchant-gateway-woocommerce</name>
         </data>
     </configuration>
 </project>
