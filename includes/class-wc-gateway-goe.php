@@ -217,7 +217,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     /**
      * Add an error message to session 
      */
-    function add_missing_fields_notice() {
+    function add_missing_fields_notice($printNotice = FALSE) {
         wc_add_notice(__('Payment error: ', 'woothemes') .
                 "Some required fields (*) are missing. Please check below and try again.", 'error');
         return;
@@ -320,6 +320,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return $merchant_info;
     }
     
+    function validate_expiry($isAccountPage) {
+        
+    }
+    
     /**
      * Get array with credit card info to be sent to REST gateway
      * @return array Array of cc info, or FALSE if any required field is blank.
@@ -348,6 +352,23 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     
     function is_cvv_saved_blank() {
         return $_POST['goe-card-cvc-saved'] == "";
+    }
+    
+    function isDateExpired($month, $year) {
+        if ($year == date("y")) {
+            if ($month < date("m")) {
+                return true;
+            }
+            else {
+                return false;
+            }
+        }
+        elseif ($year < date("y")) {
+            return false;
+        }
+        else {
+            return true;
+        }
     }
     
     /**
