@@ -372,7 +372,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     }
     
     /**
-     * 
+     *  
      * @return string HTML for a drop down of each existing card, or null if 
      * the list is empty, the user is not logged in, or if this method is run
      * on a page other than the "My Account" page.
