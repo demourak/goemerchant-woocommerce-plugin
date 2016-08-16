@@ -342,7 +342,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'cardExpMonth' => substr($_POST['goe-card-expiry'], 0, 2),
             'cardExpYear'  => substr($_POST['goe-card-expiry'], -2),
             'cVV'          => $_POST['goe-card-cvc'],
-            'cardType'     => $this->cardType($ccnum)
+            'cardType'     => $this->getCardType($ccnum)
         );
     }
     
@@ -393,57 +393,53 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
-            $cardType = $this->cardTypePretty($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
+            $cardType = $this->getCardType($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
             $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$cardType} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
         }
         
         $html .= "</select><br><br>";
         return $html;
     }
-    
+
     /**
-     * Return credit card type if number is valid.
-     * @return string
-     * @param $number string The credit card number in full.
-     * */
-    function cardType($number) {
-        $number = preg_replace('/[^\d]/', '', $number);
-        if (preg_match('/^3[47][0-9]{13}$/', $number)) {
-            return 'amex';
-        } elseif (preg_match('/^3(?:0[0-5]|[68][0-9])[0-9]{11}$/', $number)) {
-            return 'dc';
-        } elseif (preg_match('/^6(?:011|5[0-9][0-9])[0-9]{12}$/', $number)) {
-            return 'disc';
-        } elseif (preg_match('/^(?:2131|1800|35\d{3})\d{11}$/', $number)) {
-            return 'JCB';
-        } elseif (preg_match('/^5[1-5][0-9]{14}$/', $number)) {
-            return 'mastercard';
-        } elseif (preg_match('/^4[0-9]{12}(?:[0-9]{3})?$/', $number)) {
-            return 'visa';
-        } else {
-            return 'Unknown';
+     * Determine if a number passes a mod-10 check
+     * @param $number string representing card number
+     * @return int indicating whether check was passed or not
+     */
+    function mod10Check($number) {
+        $checksum = "";
+        foreach (str_split(strrev((string) $number)) as $i => $d) {
+            $checksum .= ($i % 2 !== 0) ? $d * 2 : $d;
         }
+        return (int) ($checksum && array_sum(str_split($checksum)) % 10 === 0);
     }
-    
-    function cardTypePretty($number) {
-        $number = preg_replace('/[^\d]/', '', $number);
-        if (
-                preg_match('/^3[47][0-9]{13}$/', $number) || 
-                substr($number, 0, 2) == "34" || 
-                substr($number, 0, 2) == "37") {
-            return 'American Express';
-        } elseif (preg_match('/^3(?:0[0-5]|[68][0-9])[0-9]{11}$/', $number)) {
-            return 'Diner\'s Club';
-        } elseif (preg_match('/^6(?:011|5[0-9][0-9])[0-9]{12}$/', $number)) {
-            return 'Discover';
-        } elseif (preg_match('/^(?:2131|1800|35\d{3})\d{11}$/', $number)) {
-            return 'JCB';
-        } elseif (preg_match('/^5[1-5][0-9]{14}$/', $number)) {
-            return 'MasterCard';
-        } elseif (preg_match('/^4[0-9]{12}(?:[0-9]{3})?$/', $number)) {
-            return 'Visa';
-        } else {
-            return 'Unknown';
+
+    /**
+     * Determine credit card type based on number
+     * @param $number string representing card number
+     * @return string indicating card type (or NULL if invalid or unrecognized)
+     */
+    function getCardType($number) {
+        // If too short or non-numeric, return a null value
+        if (preg_match("/[^\d\s]/", $number) || strlen((string) $number) < 13) {
+            return NULL;
+        }
+        // Visa can be 13 or 16 or 19 digits long, always start with 4
+        if (preg_match("/^4\d{12}(\d{3,6})?$/", $number)) {
+            return "Visa";
+        }
+        // MasterCard can start with 51-55 and are 16 digits long
+        elseif (preg_match("/^5[1-5]\d{14}|222[1-9]\d{12}|22[3-9]\d{13}|2[3-6]\d{14}|27[0-1]\d{13}|2720\d{12}$/", $number)) {
+            return "MasterCard";
+        }
+        // Amex starts with 34 or 37 and is always 15 digits
+        elseif (preg_match("/^3[47]\d{13}$/", $number)) {
+            return "Amex";
+        }
+        // Discover can start with 3 or 6 but usually start with 6011 or 64 or 65
+        // Discover also processess jcb and diners club
+        else {
+            return "Discover";
         }
     }
 
@@ -645,7 +641,7 @@ BUTTON;
         echo "<form action=\"{$my_account_url}\" method=\"post\"><table border=\"1\">";
         echo "<tr><th>Card Type</th><th>Card Number</th><th>Expiry</th></tr>";
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
-            $cardType = $this->cardTypePretty($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
+            $cardType = ucfirst(strtolower($ccrec['cardType']));
             echo "<tr>
                 <td>{$cardType}</td>
                 <td>************{$ccrec['cardNoLast4']}</td>
