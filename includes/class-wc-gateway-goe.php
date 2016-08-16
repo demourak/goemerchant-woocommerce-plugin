@@ -5,6 +5,8 @@ require_once 'debug.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
+define("CHOOSE_CARD", "Please choose a saved card from the menu below.");
+
 /**
  * goEmerchant Gateway, extending the WooCommerce class.
  *
@@ -158,7 +160,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         //process saved or new card based on input
         if ($useSavedCard) {
             if (!$_POST['goe-selected-card']) {
-                $this->add_missing_fields_notice();
+                //$this->add_missing_fields_notice();
+                wc_add_notice(CHOOSE_CARD, 'error');
                 return;
             }
             $vaultTransactionData = array_merge(
