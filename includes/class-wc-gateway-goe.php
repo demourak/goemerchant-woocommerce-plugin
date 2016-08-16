@@ -157,6 +157,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         //process saved or new card based on input
         if ($useSavedCard) {
+            if (!$_POST['goe-selected-card']) {
+                $this->add_missing_fields_notice();
+                return;
+            }
             $vaultTransactionData = array_merge(
                                 $transactionData, 
                                 $this->get_vault_info(), 
@@ -381,7 +385,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (!is_user_logged_in() || is_account_page()) {
             return FALSE;
         }
-        $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >';
+        $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >' . 
+                '<option value="">Choose saved card</option>';
         // query for cards using REST
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), $this->get_vault_info(TRUE));
@@ -389,11 +394,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $result = $rgw->Result;
         
         if (empty($result['data']['creditCardRecords'])) {
-            return FALSE;
+            return false;
         }
         
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
-            $cardType = $this->getCardType($ccrec["cardNoFirst6"] . "000000" . $ccrec["cardNoLast4"]);
+            $cardType = ucfirst(strtolower($ccrec['cardType']));
             $html.= "<option value=\"{$ccrec["id"]}\">************{$ccrec["cardNoLast4"]} - {$cardType} - {$ccrec["cardExpMM"]}/{$ccrec["cardExpYY"]}</option>";
         }
         
