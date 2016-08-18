@@ -5,7 +5,37 @@ require_once 'debug.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
-define("CHOOSE_CARD", "Please choose a saved card from the menu below.");
+
+//define constants for display
+define("URL_SUBMIT_CC_BATCH_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch");
+define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options");
+
+define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
+define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
+
+define("TITLE_ENABLED", 'Enable/Disable');
+define("LABEL_ENABLED", 'Enable goEmerchant Gateway');
+
+define("TITLE_PAYMENT_METHOD_TITLE", 'Title');
+define("DESC_PAYMENT_METHOD_TITLE", 'The name of this payment method that your customers will see.');
+define("DEFAULT_PAYMENT_METHOD_TITLE", 'Credit Card');
+
+define("TITLE_INSTRUCTIONS", "Instructions");
+define("DESC_INSTRUCTIONS", 'Instructions that will be added to the thank you page and emails. '
+                        . 'For more email options, check out the "Emails" tab above.');
+define("DEFAULT_INSTRUCTIONS", 'Thank you for your purchase!');
+
+define("TITLE_GATEWAY_ID", "Gateway ID (Merchant Key)");
+define("DESC_GATEWAY_ID", 'You can find your gateway and processor ID by logging into the transaction center and following the steps listed '
+                        . '<a href=' . URL_GATEWAY_OPTIONS_SUPPORT . '>here</a>.');
+
+define('TITLE_PROCESSOR_ID', 'Processor ID');
+
+define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for settlement in'
+                        . ' your goEmerchant Transaction Center in order to capture the funds.'
+                        . ' Visit our <a href=' . URL_SUBMIT_CC_BATCH_SUPPORT . '>support page</a>'
+                        . ' for a walkthrough of settling transactions.');
+define("TITLE_AUTH_ONLY", "Authorize Only");
 
 define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
                         . 'Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. '
@@ -40,7 +70,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->init_settings();
         $this->currentUserID = wp_get_current_user()->ID;
 
-        $title                    = $this->get_option( 'title' );
+        $title                    = $this->get_option( 'payment-method-title' );
         $this->title              = empty( $title ) ? __( 'goEmerchant', 'wc-goe' ) : $title;
         $this->description        = $this->get_option( 'description' );
         $this->instructions       = $this->get_option( 'instructions', $this->description );
@@ -49,6 +79,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
         add_action( 'woocommerce_after_my_account', array( $this, 'on_my_account_load' ) );
+        
+        add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
+        add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
     }
 
     /**
@@ -60,41 +93,36 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     public function init_form_fields() {
         $this->form_fields = array(
             'enabled' => array(
-                'title'   => __( 'Enable/Disable', 'wc-goe' ),
+                'title'   => __( TITLE_ENABLED, 'wc-goe' ),
                 'type'    => 'checkbox',
-                'label'   => __( 'Enable goEmerchant Gateway', 'wc-goe' ),
+                'label'   => __( LABEL_ENABLED, 'wc-goe' ),
                 'default' => 'yes'
             ),
-            'title' => array(
-                'title'   => __( 'Title', 'wc-goe' ),
+            'payment-method-title' => array(
+                'title'   => __( TITLE_PAYMENT_METHOD_TITLE, 'wc-goe' ),
                 'type'    => 'text',
-                'description' => __( 'The name of this payment method that your customers will see.', 'wc-goe' ),
-                'default' => __( 'Credit Card', 'wc-goe' ),
+                'description' => __( DESC_PAYMENT_METHOD_TITLE, 'wc-goe' ),
+                'default' => __( DEFAULT_PAYMENT_METHOD_TITLE, 'wc-goe' ),
             ),
             'instructions' => array(
-                'title'       => __( 'Instructions', 'wc-goe' ),
+                'title'       => __( TITLE_INSTRUCTIONS, 'wc-goe' ),
                 'type'        => 'textarea',
-                'description' => __( 'Instructions that will be added to the thank you page and emails. '
-                        . 'For more email options, check out the "Emails" tab above.', 'wc-goe' ),
-                'default'     => __( 'Thank you for your purchase!', 'wc-goe' ),
+                'description' => __( DESC_INSTRUCTIONS, 'wc-goe' ),
+                'default'     => __( DEFAULT_INSTRUCTIONS, 'wc-goe' ),
             ),
             'gateway-id' => array(
-                'title' => __( 'Merchant Key (Gateway ID)', 'wc-goe' ),
+                'title' => __( TITLE_GATEWAY_ID, 'wc-goe' ),
                 'type'  => 'text',
-                'description' => __( 'You can find your gateway and processor ID by logging into the transaction center and following the steps listed '
-                        . '<a href="http://support.goemerchant.com/transaction-center.aspx?article=gateway-options">here</a>.')
+                'description' => DESC_GATEWAY_ID
             ),
             'processor-id' => array(
-                'title' => __( 'Processor ID', 'wc-goe' ),
+                'title' => __( TITLE_PROCESSOR_ID, 'wc-goe' ),
                 'type'  => 'text',
             ),
             'auth-only' => array(
-                'title' => __('Authorize Only', 'wc-goe'),
+                'title' => __(TITLE_AUTH_ONLY, 'wc-goe'),
                 'type'  => 'checkbox',
-                'label' => __('If enabled, you must manually submit transactions for settlement in'
-                        . ' your goEmerchant Transaction Center in order to capture the funds.'
-                        . ' Visit our <a href="http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch">support page</a>'
-                        . ' for a walkthrough of settling transactions.', 'wc-goe'),
+                'label' => __(LABEL_AUTH_ONLY, 'wc-goe'),
                 'default' => 'no'
             ),
             'order-prefix' => array(
@@ -105,7 +133,30 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             ),
         );
     }
+    
+    /**
+     * Display err msg for admin on WP dashboard.
+     * @param boolean $print To prevent WP from printing on every WC settings page
+     */
+    public function print_admin_error($print = false) {
+        if (!$print) {return;}
+        
+        $class = 'notice notice-error';
+        $message = __(PLEASE_ENTER_ID, 'wc-goe');
 
+        printf('<div class="%1$s"><p>%2$s</p></div>', $class, $message);
+        return;
+    }
+
+    public function validate_goe_option($option, $old_value, $value) {
+        if ($option == 'woocommerce_goe_settings') {
+            if ($value['enabled'] == 'yes') {
+                if ($value['gateway-id'] == "" || $value['processor-id'] == "") {
+                    $this->print_admin_error(true);
+                }
+            }
+        }
+    }
 
     /**
      * Output for the order received page.
@@ -176,7 +227,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($useSavedCard) {
             if (!$_POST['goe-selected-card']) {
                 //$this->add_missing_fields_notice();
-                wc_add_notice(CHOOSE_CARD, 'error');
+                wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
                 return;
             }
             $vaultTransactionData = array_merge(
