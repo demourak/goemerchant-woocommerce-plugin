@@ -37,6 +37,11 @@ define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for
                         . ' for a walkthrough of settling transactions.');
 define("TITLE_AUTH_ONLY", "Authorize Only");
 
+define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
+        . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
+        . '<b>UPDATING THIS OPTION WILL ERASE YOUR CURRENT USERS\' SAVED PAYMENTS.</b>');
+define("TITLE_VAULT_KEY_PREFIX", 'Vault Key Prefix');
+
 define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
                         . 'Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. '
                         . 'Only visible within the goEmerchant Transaction Center.');
@@ -124,6 +129,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'type'  => 'checkbox',
                 'label' => __(LABEL_AUTH_ONLY, 'wc-goe'),
                 'default' => 'no'
+            ),
+            'vault-key-prefix' => array(
+                'title'   => __( TITLE_VAULT_KEY_PREFIX,  'wc-goe' ),
+                'type'    => 'text',
+                'description' => __( DESC_VAULT_KEY_PREFIX, 'wc-goe' ),
+                'default' => 'WC_GOE',
             ),
             'order-prefix' => array(
                 'title'   => __( TITLE_ORDER_PREFIX,  'wc-goe' ),
@@ -369,14 +380,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @param type $isQuery
      * @return array Array with a single item, either the vaultKey or queryVaultKey
      */
-    function get_vault_info($isQuery = FALSE) {
+    function get_vault_info($isQuery = false) {
+        $vaultKey = $this->get_option('vault-key-prefix') . $this->currentUserID;
         if ($isQuery) {
             return array(
-                'queryVaultKey' => 'wc_g0e_' . $this->currentUserID
+                'queryVaultKey' => $vaultKey
             );
         } else {
             return array(
-                'vaultKey' => 'wc_g0e_' . $this->currentUserID
+                'vaultKey' => $vaultKey
             );
         }
     }
