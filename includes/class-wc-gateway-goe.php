@@ -96,7 +96,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'title'   => __( TITLE_ENABLED, 'wc-goe' ),
                 'type'    => 'checkbox',
                 'label'   => __( LABEL_ENABLED, 'wc-goe' ),
-                'default' => 'yes'
+                'default' => 'no'
             ),
             'payment-method-title' => array(
                 'title'   => __( TITLE_PAYMENT_METHOD_TITLE, 'wc-goe' ),
