@@ -6,10 +6,13 @@ require_once 'debug.php';
 defined( 'ABSPATH' ) or die();
 
 
-//define constants for display
+// 
 define("URL_SUBMIT_CC_BATCH_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch");
 define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options");
 
+// define constants for display
+define("MSG_AUTH_APPROVED", "Authorization APPROVED.");
+define("ERR_CARD_NUMBER_INVALID", "Unable to process: Credit card number is invalid.");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
 
@@ -37,6 +40,7 @@ define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for
                         . ' for a walkthrough of settling transactions.');
 define("TITLE_AUTH_ONLY", "Authorize Only");
 
+define("DEFAULT_VAULT_KEY_PREFIX", 'WC_GOE_');
 define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
         . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
         . '<b>UPDATING THIS OPTION WILL ERASE YOUR CURRENT USERS\' SAVED PAYMENTS.</b>');
@@ -80,10 +84,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->description        = $this->get_option( 'description' );
         $this->instructions       = $this->get_option( 'instructions', $this->description );
 
+        //register hooks
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
         add_action( 'woocommerce_thankyou_goe', array( $this, 'thank_you_page' ) );
         add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options') );
         add_action( 'woocommerce_after_my_account', array( $this, 'on_my_account_load' ) );
+        add_action( 'woocommerce_order_details_after_order_table', array($this, 'print_payment_details'), 10, 1);
         
         add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
         add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
@@ -134,14 +140,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'title'   => __( TITLE_VAULT_KEY_PREFIX,  'wc-goe' ),
                 'type'    => 'text',
                 'description' => __( DESC_VAULT_KEY_PREFIX, 'wc-goe' ),
-                'default' => 'WC_GOE',
+                'default' => DEFAULT_VAULT_KEY_PREFIX
             ),
             'order-prefix' => array(
                 'title'   => __( TITLE_ORDER_PREFIX,  'wc-goe' ),
                 'type'    => 'text',
                 'description' => __( DESC_ORDER_PREFIX, 'wc-goe' ),
-                'default' => '',
-            ),
+                'default' => ''
+            )
         );
     }
     
@@ -158,7 +164,41 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         printf('<div class="%1$s"><p>%2$s</p></div>', $class, $message);
         return;
     }
+    
+    public function print_payment_details($order) {
+        echo "<b>Payment Details</b><br>";
+        
+        $queryOrderId = $this->get_option('order-prefix') . $order->id;
+        
+        $rgw = new RestGateway();
+        $data = array_merge($this->get_merchant_info(), array('queryOrderId' => $queryOrderId));
+        $rgw->query($data);
+        $result = $rgw->Result;
+        
+        if (empty($result['data']['orders'])) {
+            return;
+        }
+        
+        foreach ($result['data']['orders'] as $index => $txn) {
+            $ccrec = $txn['ccInfo'];
+            $cardType = ucfirst(strtolower($ccrec['cardType']));
+            echo "<tr>
+                <td>{$cardType}</td>
+                <td>{$ccrec['cardNumber']}</td>
+                </tr><br>";
+            break;
+        }
+        
+        return;  
+    }
 
+    /**
+     * Display an error message in the WP dash if merchant enables gateway with
+     * no gateway or processor IDs.
+     * @param type $option
+     * @param type $old_value
+     * @param type $value
+     */
     public function validate_goe_option($option, $old_value, $value) {
         if ($option == 'woocommerce_goe_settings') {
             if ($value['enabled'] == 'yes') {
@@ -266,6 +306,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 return;
             }
             else {
+                $cardInfo = $this->get_cc();
+                if (!mod10Check($cardInfo['cardNumber'])) {
+                    wc_add_notice(ERR_CARD_NUMBER_INVALID, 'error');
+                    return;
+                }
                 $saleTransactionData = array_merge($transactionData, $this->get_cc());
             }
             if ($authOnly) {
@@ -279,23 +324,31 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         }
 
-        $error_msg = $this->get_error_string($rgw);
+        $error_msg = $this->get_error_string($rgw); // checks for decline/error
         if ($error_msg) {
-            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error');
+            wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error'); // informs user of decline/error
             $order->update_status( 'failed' );
             return;
         }
         
-        //handles order stock, mark as processing
-        // pass in refNum as WC transaction_id for possible future refund support
-        // through WC
-        $order->payment_complete($rgw->Result["data"]["referenceNumber"]);
+        if ($rgw->Result['isSuccess'] == 1) {
+            //handles order stock, mark as processing
+            // pass in refNum as WC transaction_id for possible future refund support
+            // through WC
+            $order->payment_complete($rgw->Result["data"]["referenceNumber"]);
+
+            wc_add_notice(MSG_AUTH_APPROVED, 'success');
+            // Return thank you redirect
+            return array(
+                'result' => 'success',
+                'redirect' => $this->get_return_url($order)
+            );
+        }
         
-        // Return thank you redirect
-        return array(
-            'result' => 'success',
-            'redirect' => $this->get_return_url($order)
-        );
+        else { // we shouldn't ever make it this far, but just in case, bail out
+            wc_add_notice("There was a problem processing your order. Please try again later.", "error");
+            return;
+        }
     }
     
     /**
@@ -323,7 +376,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     function save_cc_to_vault($requestData, $restGW) {
         $restGW->createVaultCreditCardRecord(
-                $requestData, NULL, NULL);
+                $requestData);
         $result = $restGW->Result;
         $unable = "Unable to save credit card: ";
         if ($result["isError"] == TRUE) {
@@ -471,7 +524,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         // query for cards using REST
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), $this->get_vault_info(TRUE));
-        $rgw->queryVaultForCreditCardRecords($data, NULL, NULL);
+        $rgw->queryVaultForCreditCardRecords($data);
         $result = $rgw->Result;
         
         if (empty($result['data']['creditCardRecords'])) {
@@ -720,7 +773,7 @@ BUTTON;
         $my_account_url = get_permalink( $pageID );
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), $this->get_vault_info(TRUE));
-        $rgw->queryVaultForCreditCardRecords($data, NULL, NULL);
+        $rgw->queryVaultForCreditCardRecords($data);
         $result = $rgw->Result;
         
         echo "<h2>Saved Credit Cards</h2>";
@@ -762,7 +815,7 @@ class RestGateway {
         //apiUrl, result, status have to be declared globally this way, otherwise not all the functions can see it.
     }
 
-    public function createSale($transactionData, $callBackSuccess, $callBackFailure) {
+    public function createSale($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
         $apiRequest = $this->apiUrl . "Sale";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
         if ($this->status >= 500 && $this->status <= 599) {
@@ -776,7 +829,7 @@ class RestGateway {
         }
     }
 
-    public function createAuth($transactionData, $callBackSuccess, $callBackFailure) {
+    public function createAuth($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
         $apiRequest = $this->apiUrl . "Auth";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
         if ($this->status >= 500 && $this->status <= 599) {
@@ -789,7 +842,7 @@ class RestGateway {
             call_user_func($callBackSuccess);
         }
     }
-    
+
     public function createCredit($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
         $apiRequest = $this->apiUrl . "Credit";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
@@ -797,6 +850,20 @@ class RestGateway {
         if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
         if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)){call_user_func ($callBackSuccess);}
     }
+    
+    public function query($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
+        $apiRequest = $this->apiUrl . "Query";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)) {
+            call_user_func($callBackFailure);
+        }
+        if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)) {
+            call_user_func($callBackSuccess);
+        }
+    }    
     
     public function createSaleUsing1stPayVault($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
         $apiRequest = $this->apiUrl . "SaleUsingVault";
@@ -826,7 +893,7 @@ class RestGateway {
         }
     }
 
-    public function createVaultCreditCardRecord($transactionData, $callBackSuccess, $callBackFailure) {
+    public function createVaultCreditCardRecord($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
         $apiRequest = $this->apiUrl . "VaultCreateCCRecord";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
         if ($this->status >= 500 && $this->status <= 599) {
@@ -840,7 +907,7 @@ class RestGateway {
         }
     }
     
-    public function queryVaultForCreditCardRecords($transactionData, $callBackSuccess, $callBackFailure) {
+    public function queryVaultForCreditCardRecords($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL) {
         $apiRequest = $this->apiUrl . "VaultQueryCCRecord";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
         if ($this->status >= 500 && $this->status <= 599) {
