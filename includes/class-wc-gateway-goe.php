@@ -12,6 +12,7 @@ define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transactio
 
 // define constants for display
 define("MSG_AUTH_APPROVED", "Authorization APPROVED.");
+define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
 define("ERR_CARD_NUMBER_INVALID", "Unable to process: Credit card number is invalid.");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
@@ -43,7 +44,7 @@ define("TITLE_AUTH_ONLY", "Authorize Only");
 define("DEFAULT_VAULT_KEY_PREFIX", 'WC_GOE_');
 define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
         . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
-        . '<b>UPDATING THIS OPTION WILL ERASE YOUR CURRENT USERS\' SAVED PAYMENTS.</b>');
+        . '<b>UPDATING THIS OPTION WILL ERASE YOUR USERS\' CURRENT SAVED PAYMENT METHODS.</b>');
 define("TITLE_VAULT_KEY_PREFIX", 'Vault Key Prefix');
 
 define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
@@ -307,7 +308,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
             else {
                 $cardInfo = $this->get_cc();
-                if (!mod10Check($cardInfo['cardNumber'])) {
+                if (!$this->mod10Check($cardInfo['cardNumber'])) {
                     wc_add_notice(ERR_CARD_NUMBER_INVALID, 'error');
                     return;
                 }
@@ -320,7 +321,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
             if ($saveCard && !$useSavedCard) {
                 $vaultData = array_merge($saleTransactionData, $this->get_vault_info());
-                $this->save_cc_to_vault($vaultData, $rgw);
+                $this->save_cc_to_vault($vaultData, new RestGateway());
             }
         }
 
@@ -382,17 +383,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($result["isError"] == TRUE) {
             foreach ($result["errorMessages"] as $index => $err) {
                 if ($err == "Credit card account already exists") {
-                    $save_err_msg = $unable . 'Payment method already exists. Please delete exisiting card in My Account first.';
                     if (is_account_page()) {
-                        wc_print_notice($save_err_msg, 'error');
+                        wc_print_notice(MSG_CARD_ALREADY_EXISTS, 'notice');
                     } else {
-                        wc_add_notice($save_err_msg, 'error');
+                        wc_add_notice(MSG_CARD_ALREADY_EXISTS, 'notice');
                     }
                 } else {
                     if (is_account_page()) {
-                        wc_print_notice($err, 'error');
+                        wc_print_notice($err, 'notice');
                     } else {
-                        wc_add_notice($err, 'error');
+                        wc_add_notice($err, 'notice');
                     }
                 }
             }
