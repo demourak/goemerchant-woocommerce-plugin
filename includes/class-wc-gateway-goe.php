@@ -15,8 +15,8 @@ define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transactio
 // define constants for display
 define("MSG_AUTH_APPROVED", "Authorization APPROVED.");
 define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
-define("ERR_CARD_NUMBER_INVALID", "Unable to process: Credit card number is invalid.");
-define("ERR_CARD_EXPIRY_INVALID", "Unable to process: Invalid card expiration date.");
+define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
+define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
 define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check below and try again.");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
@@ -50,7 +50,7 @@ define("TITLE_AUTH_ONLY", "Authorize Only");
 define("DEFAULT_VAULT_KEY_PREFIX", 'WC_GOE_');
 define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
         . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
-        . '<b>UPDATING THIS OPTION WILL ERASE YOUR USERS\' CURRENT SAVED PAYMENT METHODS.</b>');
+        . '<b>UPDATING THIS OPTION WILL DISABLE YOUR USERS\' CURRENT SAVED PAYMENT METHODS.</b>');
 define("TITLE_VAULT_KEY_PREFIX", 'Vault Key Prefix');
 
 define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
@@ -326,6 +326,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $this->add_missing_fields_notice();
                 return;
             }
+            elseif (!$this->is_valid_expiry()) {
+                wc_add_notice(ERR_CARD_EXPIRY_INVALID, 'error');
+                return;
+            }
             else {
                 $cardInfo = $this->get_cc();
                 if (!$this->mod10Check($cardInfo['cardNumber'])) {
@@ -488,7 +492,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @param string $expiry in the format MM/YY
      */
     function is_valid_expiry() {
-        if (strlen($_POST['goe-card-expiry']) == 5) {
+        if (strlen($_POST['goe-card-expiry']) == 7) {
             $expMonth = substr($_POST['goe-card-expiry'], 0, 2);
             $expYear = substr($_POST['goe-card-expiry'], -2);
             
@@ -783,18 +787,20 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (isset($_POST['goe-card-number'], $_POST['goe-card-expiry'])) {
             if ($this->get_cc()) {
                 $cardInfo = $this->get_cc();
-                if ($this->mod10Check($cardInfo['cardNumber'])) {
-                    $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
-                    $this->save_cc_to_vault($vaultRequest, new RestGateway());
+                if ($this->is_valid_expiry()) {
+                    if ($this->mod10Check($cardInfo['cardNumber'])) {
+                        $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
+                        $this->save_cc_to_vault($vaultRequest, new RestGateway());
+                    } else {
+                        wc_print_notice(ERR_CARD_NUMBER_INVALID, 'error');
+                    }
                 } else {
-                    wc_print_notice(ERR_CARD_NUMBER_INVALID, 'error');
+                    wc_print_notice(ERR_CARD_EXPIRY_INVALID, 'error');
                 }
-            }
-            else {
+            } else {
                 $this->add_missing_fields_notice(true);
             }
-        }
-        elseif (isset($_POST["goe-delete-card"])){
+        } elseif (isset($_POST["goe-delete-card"])){
             $this->delete_cc_from_vault($_POST["goe-delete-card"]);
         }
         
