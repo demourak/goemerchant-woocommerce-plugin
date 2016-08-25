@@ -19,7 +19,7 @@ define("URL_SUBMIT_CC_BATCH_SUPPORT", "http://support.goemerchant.com/transactio
 define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options");
 
 // define constants for display
-define("MSG_AUTH_APPROVED", "Authorization APPROVED.");
+define("MSG_AUTH_APPROVED", "Your payment has been processed.");
 define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
 define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
@@ -66,6 +66,7 @@ define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
                         . 'Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. '
                         . 'Only visible within the Transaction Center.');
 define("TITLE_ORDER_PREFIX", 'Order Number Prefix');
+define("DEFAULT_ORDER_PREFIX", 'WC-');
 
 /**
  * goEmerchant Gateway, extending the WooCommerce class.
@@ -167,7 +168,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'title'   => __( TITLE_ORDER_PREFIX,  'wc-goe' ),
                 'type'    => 'text',
                 'description' => __( DESC_ORDER_PREFIX, 'wc-goe' ),
-                'default' => ''
+                'default' => DEFAULT_ORDER_PREFIX
             )
         );
     }
