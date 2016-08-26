@@ -24,6 +24,9 @@ define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a c
 define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
 define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
+define("ERR_TRY_DIFFERENT_CARD", "Please try a different card.<br>");
+define("ERR_BAD_CARD", "Merchant does not accept this card.<br>");
+define("ERR_CARD_DECLINED", "Authorization: DECLINED. Please try a different card or contact your issuing bank for more information.<br>");
 define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check below and try again.");
 define("ERR_PROBLEM_PROCESSING", "Please try again later.");
 define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
@@ -720,9 +723,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         if ($result["isError"] == TRUE) {
             $errorString = "There was an error processing your request.<br>";
-            $badCard = "Merchant does not accept this card.<br>";
-            $tryAgain = "Please try a different card.<br>";
-            $decline = "The issuing bank has declined this transaction. Please try a different card or contact your issuing bank for more information.<br>";
+            $badCard = ERR_BAD_CARD;
+            $tryAgain = ERR_TRY_DIFFERENT_CARD;
+            $decline = ERR_CARD_DECLINED;
             foreach ($result["errorMessages"] as $index => $err) {
                 switch ($err) {
                     case 'Pick up card':
@@ -741,7 +744,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     case 'Over Credit Flr' :
                     case 'Request Denied' :
                     case 'Invalid Card' :
-                    case 'CVD Data Error' : $errorString .= $decline; break;
+                    case 'CVD Data Error' : $errorString = $decline; break;
                     case 'Card Not Allowed' :
                         $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
