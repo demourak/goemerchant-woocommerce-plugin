@@ -25,7 +25,7 @@ define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
 define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
 define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check below and try again.");
-define("ERR_PROBLEM_PROCESSING", "There was a problem processing your order. Please try again later.");
+define("ERR_PROBLEM_PROCESSING", "Please try again later.");
 define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
@@ -725,8 +725,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $decline = "The issuing bank has declined this transaction. Please try a different card or contact your issuing bank for more information.<br>";
             foreach ($result["errorMessages"] as $index => $err) {
                 switch ($err) {
+                    case 'Pick up card':
+                    case 'PICK UP CARD':
+                    case 'Declined':
                     case 'Auth Declined':
                     case 'Do Not Honor':
+                    case 'DO NOT HONOR':
                     case 'Call Voice Oper':
                     case 'Hold - Call' :
                     case 'Invalid Card No' :
@@ -756,7 +760,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         $errorString .= $badCard;
                         $errorString .= $tryAgain; break;
                     default: // Hard error (Payment server unavailable, etc...)
-                        $errorString .= ERR_PROBLEM_PROCESSING;
+                        $errorString .= "RESPONSE: " . $err;
                         break 2;
                 }
             }
@@ -834,6 +838,9 @@ BUTTON;
         echo "<h2>Saved Credit Cards</h2>";
         echo "<form action=\"{$my_account_url}\" method=\"post\"><table border=\"1\">";
         echo "<tr><th>Card Type</th><th>Card Number</th><th>Expiry</th></tr>";
+        if ($result['isError']) {
+            return; // do not attempt to print details if request was unsuccessful
+        }
         foreach ($result['data']['creditCardRecords'] as $index => $ccrec) {
             $cardType = ucfirst(strtolower($ccrec['cardType']));
             echo "<tr>
