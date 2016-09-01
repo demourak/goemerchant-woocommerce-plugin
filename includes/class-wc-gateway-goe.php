@@ -34,7 +34,7 @@ define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
 
 define("TITLE_SANDBOX", "Enable Sandbox/Validation");
-define("LABEL_SANDBOX", "Configure this plugin to process to our sandbox environment (no live transactions will process).");
+define("LABEL_SANDBOX", "Configure this plugin to process to our validation environment (secure-v.goemerchant.com).");
 define("TITLE_ENABLED", 'Enable/Disable');
 define("LABEL_ENABLED", 'Enable goEmerchant Gateway');
 
@@ -361,7 +361,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return;
         }
         
-        if ($rgw->Result['isSuccess'] == 1) {
+        if ($rgw->Result['isSuccess']) {
             //handles order stock, mark as processing
             // pass in refNum as WC transaction_id for possible future refund support
             // through WC
