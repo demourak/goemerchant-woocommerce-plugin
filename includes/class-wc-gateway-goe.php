@@ -31,7 +31,7 @@ define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check
 define("ERR_PROBLEM_PROCESSING", "Please try again later.");
 define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
-define("PLEASE_ENTER_ID", "Please enter a valid gateway and processor ID. Enabling the plugin without these parameters will cause problems.");
+define("PLEASE_ENTER_ID", "Please enter a valid gateway ID and processor ID.");
 
 define("TITLE_SANDBOX", "Enable Sandbox/Validation");
 define("LABEL_SANDBOX", "Configure this plugin to process to our validation environment (secure-v.goemerchant.com).");
@@ -43,8 +43,7 @@ define("DESC_PAYMENT_METHOD_TITLE", 'The name of this payment method that your c
 define("DEFAULT_PAYMENT_METHOD_TITLE", 'Credit Card');
 
 define("TITLE_INSTRUCTIONS", "Instructions");
-define("DESC_INSTRUCTIONS", 'Instructions that will be added to the thank you page and emails. '
-                        . 'For more email options, check out the "Emails" tab above.');
+define("DESC_INSTRUCTIONS", 'Instructions that will be added to the thank you page and emails.');
 define("DEFAULT_INSTRUCTIONS", 'Thank you for your purchase!');
 
 define("TITLE_GATEWAY_ID", "Gateway ID (Merchant Key)");
@@ -59,7 +58,7 @@ define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for
                         . ' for a walkthrough of settling transactions.');
 define("TITLE_AUTH_ONLY", "Authorize Only");
 
-define("DEFAULT_VAULT_KEY_PREFIX", 'WC_');
+define("DEFAULT_VAULT_KEY_PREFIX", 'WC-');
 define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
         . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
         . '<b>UPDATING THIS OPTION WILL DISABLE YOUR USERS\' CURRENT SAVED PAYMENT METHODS.</b>');
