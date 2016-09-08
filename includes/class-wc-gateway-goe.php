@@ -87,7 +87,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->id                 = WC_GATEWAY_ID;
         $this->icon               = false;
         $this->has_fields         = true; // checkout fields
-        $this->supports           = array( '' ); 
+        $this->supports           = array( 'subscriptions' ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
                 __( DESC_METHOD, 'wc-goe' );
@@ -111,6 +111,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
         add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
+        
+        add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
     }
 
     /**
@@ -192,10 +194,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     public function print_payment_details($order) {
         echo "<b>Payment Details</b><br>";
         
-        $queryOrderId = $this->get_option('order-prefix') . $order->id;
-        
         $rgw = new RestGateway();
-        $data = array_merge($this->get_merchant_info(), array('queryOrderId' => $queryOrderId));
+        $data = array_merge($this->get_merchant_info(), array('queryReferenceNo' => $order->get_transaction_id()));
         $rgw->query($data);
         $result = $rgw->Result;
         if (empty($result['data']['orders'])) {
@@ -361,11 +361,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         if ($rgw->Result['isSuccess']) {
-            //handles order stock, mark as processing
-            // pass in refNum as WC transaction_id for possible future refund support
-            // through WC
+            //handles order stock, marks status as 'processing'
+            // pass in refNum as WC transaction_id 
             $order->payment_complete($rgw->Result["data"]["referenceNumber"]);
-
             wc_add_notice(MSG_AUTH_APPROVED, 'success');
             
             if ($saveCard && !$useSavedCard) {
@@ -383,6 +381,33 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         else { // we shouldn't ever make it this far, but just in case, bail out
             wc_add_notice(ERR_PROBLEM_PROCESSING, "error");
             return;
+        }
+    }
+    
+    function process_subscription_payment($totalAmount, $order) {
+        $transactionData = array (
+            'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
+            'refNumber' => $order->get_transaction_id(),
+            'transactionAmount' => $totalAmount
+        );
+        
+        $transactionData = array_merge($transactionData, $this->get_merchant_info());
+        $rgw = new RestGateway();
+        
+        if ($this->get_option('auth-only') == 'yes') {
+            $rgw->createReAuth($transactionData);
+        }
+        else {
+            $rgw->createReSale($transactionData);
+        }
+        
+        $isErr = $this->get_error_string($rgw);
+        
+        if ($isErr) {
+            WC_Subscriptions_Manager::process_subscription_payment_failure_on_order( $order );
+        }
+        else {
+            WC_Subscriptions_Manager::process_subscription_payments_on_order( $order );
         }
     }
     
@@ -664,9 +689,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             </p>'
         );
 
-        if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' && !is_account_page()) ) {
+        //if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' && !is_account_page()) ) {
             $default_fields['card-cvc-field'] = $cvc_field;
-        }
+        //}
         
         if (is_user_logged_in() && !is_account_page()) {
                 $cvc_field_saved =  $this->get_existing_cards_menu() ?
@@ -909,6 +934,22 @@ class RestGateway {
 
     public function createCredit($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
         $apiRequest = $this->apiUrl . "Credit";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)){call_user_func ($callBackSuccess);}
+    }
+    
+    public function createReAuth($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
+        $apiRequest = $this->apiUrl . "ReAuth";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)){call_user_func ($callBackSuccess);}
+    }
+    
+    public function createReSale($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
+        $apiRequest = $this->apiUrl . "ReSale";
         $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
         if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)){call_user_func ($callBackFailure);}
         if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
