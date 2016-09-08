@@ -30,6 +30,7 @@ define("ERR_CARD_DECLINED", "Authorization: DECLINED. Please try a different car
 define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check below and try again.");
 define("ERR_PROBLEM_PROCESSING", "Please try again later.");
 define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
+define("ERR_PARTIAL_VOID", "Partial void not allowed. Please wait for transaction to settle, or enter full amount.");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway ID and processor ID.");
 
@@ -87,7 +88,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->id                 = WC_GATEWAY_ID;
         $this->icon               = false;
         $this->has_fields         = true; // checkout fields
-        $this->supports           = array( 'subscriptions' ); 
+        $this->supports           = array( 'subscriptions', 'refunds' ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
                 __( DESC_METHOD, 'wc-goe' );
@@ -409,6 +410,28 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         else {
             WC_Subscriptions_Manager::process_subscription_payments_on_order( $order );
         }
+    }
+    
+    public function process_refund( $order_id, $amount = null) {
+        $order = wc_get_order($order_id);
+        $refundData = array (
+            'refNumber' => $order->get_transaction_id(),
+            'transactionAmount' => $amount
+        );
+        $refundData = array_merge($refundData, $this->get_merchant_info());
+        $rgw = new RestGateway();
+        
+        $rgw->createCredit($refundData);
+        if ($this->get_error_string($rgw)) { // credit failed, try void
+            if ($amount != $order->get_total()) { // no partial voids
+               return new WP_Error( 'partialVoidError', ERR_PARTIAL_VOID );
+            }
+            else {
+                $rgw->performVoid($refundData);
+                if ($this->get_error_string($rgw)) return false;
+            }
+        }
+        return true; // unknown error, refund failed
     }
     
     /**
@@ -1038,6 +1061,14 @@ class RestGateway {
         if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)) {
             call_user_func($callBackSuccess);
         }
+    }
+    
+    public function performVoid($transactionData, $callBackSuccess = NULL, $callBackFailure = NULL){
+        $apiRequest = $this->apiUrl . "Void";
+        $this->performRequest($transactionData, $apiRequest, $callBackSuccess, $callBackFailure);
+        if ($this->Status >= 500 && $this->Status <= 599 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 400 && $this->Status <= 499 && isset($callBackFailure)){call_user_func ($callBackFailure);}
+        if ($this->Status >= 200 && $this->Status <= 299 && isset($callBackSuccess)){call_user_func ($callBackSuccess);}
     }
 
     protected function performRequest($data, $apiRequest, $callBackSuccess = NULL, $callBackFailure = NULL){
