@@ -8,15 +8,17 @@ defined( 'ABSPATH' ) or die();
 //WooCommerce id for this gateway
 define("WC_GATEWAY_ID", "goe");
 define("WC_GATEWAY_TITLE", "goEmerchant");
-define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
-                . 'Click <a href=' . URL_TRANS_CENTER_SUPPORT . '>here</a> '
-                . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
+
 // 
 define("URL_API", 'https://secure.goemerchant.com/secure/RestGW/Gateway/Transaction/');
 define("URL_API_VALIDATION", 'https://secure-v.goemerchant.com/secure/RestGW/Gateway/Transaction/');
 define("URL_TRANS_CENTER_SUPPORT", 'http://support.goemerchant.com/transaction-center.aspx');
 define("URL_SUBMIT_CC_BATCH_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch");
 define("URL_GATEWAY_OPTIONS_SUPPORT", "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options");
+
+define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
+                . 'Click <a href=' . URL_TRANS_CENTER_SUPPORT . '>here</a> '
+                . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
 
 // define constants for display
 define("MSG_AUTH_APPROVED", "Your payment has been processed.");
@@ -88,7 +90,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->id                 = WC_GATEWAY_ID;
         $this->icon               = false;
         $this->has_fields         = true; // checkout fields
-        $this->supports           = array( 'subscriptions', 'refunds' ); 
+        $this->supports           = array( 
+            'refunds',
+            'subscriptions', 
+            'subscription_cancellation',
+            'gateway_scheduled_payments',
+            'subscription_suspension', 
+            'subscription_reactivation',
+            'subscription_amount_changes',
+            'subscription_date_changes',
+            'subscription_payment_method_change'
+            ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
                 __( DESC_METHOD, 'wc-goe' );
@@ -113,7 +125,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
         add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
         
+        add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
         add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
+        
+        add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
+        //add_filter( 'woocommerce_subscription_periods', array( $this, 'filter_recurring_frequencies'), 10, 1 );
+        //add_filter( 'woocommerce_subscription_period_interval_strings', 'goe_do_not_allow_non_single_billing_intervals', 10 );
     }
 
     /**
@@ -235,6 +252,19 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         }
     }
+    
+    function filter_recurring_frequencies($subscription_periods) {
+        $subscription_periods["TestKey"] = "TestValue";
+        
+        return $subscription_periods;
+    }
+    
+    function goe_do_not_allow_non_single_billing_intervals($billing_intervals) {
+
+        array_splice($billing_intervals, 1);
+
+        return $billing_intervals;
+    }
 
     /**
      * Output for the order received page.
@@ -274,7 +304,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     public function process_payment($order_id) {
         $rgw = new RestGateway();
-        
+
         $vaultData = array();
 
         $order = wc_get_order($order_id);
@@ -282,27 +312,27 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         // get customer billing information from WC
         $cust_info = array(
             // Set order ID to match woocommerce order number
-            'orderId'           => $this->get_option('order-prefix') . $order->get_order_number(),
+            'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
             // Set IP Address for fraud screening
-            'ipAddress'         => WC_Geolocation::get_ip_address(),
-            'ownerName'         => $order->get_formatted_billing_full_name(),
-            'ownerCity'         => $order->billing_city,
-            'ownerCountry'      => $order->billing_country,
-            'ownerState'        => $order->billing_state,
-            'ownerStreet'       => $order->billing_address_1,
-            'ownerStreet2'      => $order->billing_address_2,
-            'ownerZip'          => $order->billing_postcode,
-            'ownerEmail'        => $order->billing_email,
-            'ownerPhone'        => $order->billing_phone,
+            'ipAddress' => WC_Geolocation::get_ip_address(),
+            'ownerName' => $order->get_formatted_billing_full_name(),
+            'ownerCity' => $order->billing_city,
+            'ownerCountry' => $order->billing_country,
+            'ownerState' => $order->billing_state,
+            'ownerStreet' => $order->billing_address_1,
+            'ownerStreet2' => $order->billing_address_2,
+            'ownerZip' => $order->billing_postcode,
+            'ownerEmail' => $order->billing_email,
+            'ownerPhone' => $order->billing_phone,
             'transactionAmount' => $order->get_total()
         );
-        
-        $authOnly     = $this->get_option('auth-only') == 'yes';
+
+        $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
-        $saveCard     = $_POST[$this->id . '-save-card'] == 'on';
-        
+        $saveCard = $_POST[$this->id . '-save-card'] == 'on';
+
         $transactionData = array_merge($this->get_merchant_info(), $cust_info);
-        
+
         //process saved or new card based on input
         if ($useSavedCard) {
             if (!$_POST[$this->id . '-selected-card']) {
@@ -311,12 +341,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 return;
             }
             $vaultTransactionData = array_merge(
-                                $transactionData, 
-                                $this->get_vault_info(), 
-                                array('vaultId' => $_POST[$this->id . '-selected-card']));
-            
+                    $transactionData, $this->get_vault_info(), array('vaultId' => $_POST[$this->id . '-selected-card']));
+
             $savedCardCvv = $_POST[$this->id . '-card-cvc-saved'];
-            
+
             if ($savedCardCvv == "") {
                 $this->add_missing_fields_notice();
                 return;
@@ -325,20 +353,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     $vaultTransactionData, array('cVV' => $savedCardCvv));
             if ($authOnly) {
                 $rgw->createAuthUsing1stPayVault($vaultTransactionData);
-            }
-            else {
+            } else {
                 $rgw->createSaleUsing1stPayVault($vaultTransactionData);
             }
         } else {
             if (!$this->get_cc() || $this->is_cvv_blank()) {
                 $this->add_missing_fields_notice();
                 return;
-            }
-            elseif (!$this->is_valid_expiry()) {
+            } elseif (!$this->is_valid_expiry()) {
                 wc_add_notice(ERR_CARD_EXPIRY_INVALID, 'error');
                 return;
-            }
-            else {
+            } else {
                 $cardInfo = $this->get_cc();
                 if (!$this->mod10Check($cardInfo['cardNumber'])) {
                     wc_add_notice(ERR_CARD_NUMBER_INVALID, 'error');
@@ -357,61 +382,67 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $error_msg = $this->get_error_string($rgw); // checks for decline/error
         if ($error_msg) {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error'); // informs user of decline/error
-            $order->update_status( 'failed' );
+            $order->update_status('failed');
             return;
         }
-        
+
         if ($rgw->Result['isSuccess']) {
+            $refNumber = $rgw->Result["data"]["referenceNumber"];
             //handles order stock, marks status as 'processing'
             // pass in refNum as WC transaction_id 
-            $order->payment_complete($rgw->Result["data"]["referenceNumber"]);
+            $order->payment_complete($refNumber);
             wc_add_notice(MSG_AUTH_APPROVED, 'success');
-            
-            if ($saveCard && !$useSavedCard) {
+
+            if (wcs_order_contains_subscription($order)) {
+                $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
+                update_post_meta(
+                        $order->id, 'recurring_parent_reference_number', $refNumber);
+                $subscription = $subscriptions[0];
+                update_post_meta(
+                        $subscription->id, 'recurring_parent_reference_number', $refNumber);
+            }
+            if ($saveCard && !$useSavedCard) { // save user's card if desired
                 $vaultData = array_merge($vaultData, $this->get_vault_info());
                 $this->save_cc_to_vault($vaultData, new RestGateway());
             }
-            
+
             // Return thank you redirect
             return array(
                 'result' => 'success',
                 'redirect' => $this->get_return_url($order)
             );
-        }
-        
-        else { // we shouldn't ever make it this far, but just in case, bail out
+        } else { // we shouldn't ever make it this far, but just in case, bail out
             wc_add_notice(ERR_PROBLEM_PROCESSING, "error");
             return;
         }
     }
-    
+
     function process_subscription_payment($totalAmount, $order) {
-        $transactionData = array (
-            'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
-            'refNumber' => $order->get_transaction_id(),
+        $transactionData = array(
+            'refNumber' => get_post_meta($order->id, 'recurring_parent_reference_number', true),
             'transactionAmount' => $totalAmount
         );
-        
+        check("Order: " . print_r($order, true));
         $transactionData = array_merge($transactionData, $this->get_merchant_info());
         $rgw = new RestGateway();
-        
+
         if ($this->get_option('auth-only') == 'yes') {
             $rgw->createReAuth($transactionData);
-        }
-        else {
+        } else {
             $rgw->createReSale($transactionData);
         }
-        
+        check("Reauth request: \n\n " . print_r($transactionData, true));
+        check("Recurring payment processed result: \n\n" . print_r($rgw->Result, true));
+
         $isErr = $this->get_error_string($rgw);
-        
+
         if ($isErr) {
-            WC_Subscriptions_Manager::process_subscription_payment_failure_on_order( $order );
-        }
-        else {
-            WC_Subscriptions_Manager::process_subscription_payments_on_order( $order );
+            WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($order);
+        } else {
+            WC_Subscriptions_Manager::process_subscription_payments_on_order($order);
         }
     }
-    
+
     public function process_refund( $order_id, $amount = null) {
         $order = wc_get_order($order_id);
         $refundData = array (
@@ -434,6 +465,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return true; // unknown error, refund failed
     }
     
+    function link_recurring_child($renewal_order, $subscription) {
+        check("renewal order transID: " . $renewal_order->get_transaction_id());
+        check("renwal order meta: " . get_post_meta($renewal_order, 'recurring_parent_reference_number'));
+        check("sub order meta: " . get_post_meta($subscription, 'recurring_parent_reference_number'));
+        return array($renewal_order, $subscription);
+    }
+
     /**
      * Add WooCommerce error notice to session
      * @param bool $printNotice If true, print the notice immediately
