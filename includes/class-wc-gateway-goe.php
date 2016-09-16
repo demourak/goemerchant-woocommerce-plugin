@@ -41,6 +41,9 @@ define("LABEL_SANDBOX", "Configure this plugin to process to our validation envi
 define("TITLE_ENABLED", 'Enable/Disable');
 define("LABEL_ENABLED", 'Enable goEmerchant Gateway');
 
+define("TITLE_AUTO_RENEW", 'Auto-Renew Subscriptions');
+define("LABEL_AUTO_RENEW", 'Automatically charge a customer with a subscription when their renewal payment is due.');
+
 define("TITLE_PAYMENT_METHOD_TITLE", 'Title');
 define("DESC_PAYMENT_METHOD_TITLE", 'The name of this payment method that your customers will see.');
 define("DEFAULT_PAYMENT_METHOD_TITLE", 'Credit Card');
@@ -140,6 +143,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return void
      */
     public function init_form_fields() {
+            $autoRenewOption = class_exists('WC_Subscriptions') ? array(
+                'title'   => __( TITLE_AUTO_RENEW, 'wc-goe' ),
+                'type'    => 'checkbox',
+                'label'   => __( LABEL_AUTO_RENEW, 'wc-goe' ),
+                'default' => 'yes')
+                    : array();
         $this->form_fields = array(
             'enabled' => array(
                 'title'   => __( TITLE_ENABLED, 'wc-goe' ),
@@ -153,6 +162,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'label'   => __( LABEL_SANDBOX, 'wc-goe' ),
                 'default' => 'no'
             ),
+            'auto-renew' => $autoRenewOption,
             'payment-method-title' => array(
                 'title'   => __( TITLE_PAYMENT_METHOD_TITLE, 'wc-goe' ),
                 'type'    => 'text',
@@ -426,6 +436,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @param type $order
      */
     function process_subscription_payment($totalAmount, $order) {
+        if ($this->get_option('auto-renew') == 'no') {
+            return;
+        }
         $transactionData = array(
             'refNumber' => get_post_meta($order->id, 'recurring_parent_reference_number', true),
             'transactionAmount' => $totalAmount
