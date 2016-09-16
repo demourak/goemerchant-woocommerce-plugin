@@ -94,12 +94,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'refunds',
             'subscriptions', 
             'subscription_cancellation',
-            'gateway_scheduled_payments',
+            //'gateway_scheduled_payments',
             'subscription_suspension', 
             'subscription_reactivation',
             'subscription_amount_changes',
             'subscription_date_changes',
-            'subscription_payment_method_change'
+            //'subscription_payment_method_change'
             ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
@@ -128,7 +128,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         //add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
         add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
         
-        //add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
+        add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
         //add_filter( 'woocommerce_subscription_periods', array( $this, 'filter_recurring_frequencies'), 10, 1 );
         //add_filter( 'woocommerce_subscription_period_interval_strings', 'goe_do_not_allow_non_single_billing_intervals', 10 );
     }
@@ -397,6 +397,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
                 update_post_meta(
                         $order->id, 'recurring_parent_reference_number', $refNumber);
+                foreach ($subscriptions as $subscription_id => $subscription) {
+                    update_post_meta(
+                            $subscription->id, 'recurring_parent_reference_number', $refNumber);
+                }
             }
             if ($saveCard && !$useSavedCard) { // save user's card if desired
                 $vaultData = array_merge($vaultData, $this->get_vault_info());
@@ -414,9 +418,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
 
+    /**
+     * Triggered by WooCommerce when a renewal payment is due. Processes the order as a
+     * reauthorization of the original order that contained the subscription. WC supplies the correct
+     * amount. 
+     * @param type $totalAmount
+     * @param type $order
+     */
     function process_subscription_payment($totalAmount, $order) {
         $transactionData = array(
-            'orderId' => $this->get_option('order-prefix') . 'Renewal-' . $order->get_order_number(),
             'refNumber' => get_post_meta($order->id, 'recurring_parent_reference_number', true),
             'transactionAmount' => $totalAmount
         );
@@ -429,9 +439,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $rgw->createReSale($transactionData);
         }
 
-        $isErr = $this->get_error_string($rgw);
+        $errMsg = $this->get_error_string($rgw);
 
-        if ($isErr) {
+        if ($errMsg) {
+            $order->update_status('failed');
+            $order->add_order_note($errMsg);
             WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($order);
         } else {
             $refNumber = $rgw->Result["data"]["referenceNumber"];
@@ -464,11 +476,18 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return true; // unknown error, refund failed
     }
     
+    /**
+     * Triggered on creation of a renewal order for a subscription. This saves the
+     * subscription's reference number as the order's meta data so that the original
+     * payment method can be referenced.
+     * @param type $renewal_order
+     * @param type $subscription
+     * @return type
+     */
     function link_recurring_child($renewal_order, $subscription) {
-        check("renewal order transID: " . $renewal_order->get_transaction_id());
-        check("renwal order meta: " . get_post_meta($renewal_order, 'recurring_parent_reference_number'));
-        check("sub order meta: " . get_post_meta($subscription, 'recurring_parent_reference_number'));
-        return array($renewal_order, $subscription);
+        $refNum = get_post_meta($subscription->id, 'recurring_parent_reference_number', true);
+        update_post_meta($renewal_order->id, 'recurring_parent_reference_number', $refNum);
+        return $renewal_order;
     }
 
     /**
