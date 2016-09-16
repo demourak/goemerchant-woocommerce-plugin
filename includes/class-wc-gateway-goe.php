@@ -125,10 +125,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
         add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
         
-        add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
+        //add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
         add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
         
-        add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
+        //add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
         //add_filter( 'woocommerce_subscription_periods', array( $this, 'filter_recurring_frequencies'), 10, 1 );
         //add_filter( 'woocommerce_subscription_period_interval_strings', 'goe_do_not_allow_non_single_billing_intervals', 10 );
     }
@@ -397,9 +397,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
                 update_post_meta(
                         $order->id, 'recurring_parent_reference_number', $refNumber);
-                $subscription = $subscriptions[0];
-                update_post_meta(
-                        $subscription->id, 'recurring_parent_reference_number', $refNumber);
             }
             if ($saveCard && !$useSavedCard) { // save user's card if desired
                 $vaultData = array_merge($vaultData, $this->get_vault_info());
@@ -419,10 +416,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
     function process_subscription_payment($totalAmount, $order) {
         $transactionData = array(
+            'orderId' => $this->get_option('order-prefix') . 'Renewal-' . $order->get_order_number(),
             'refNumber' => get_post_meta($order->id, 'recurring_parent_reference_number', true),
             'transactionAmount' => $totalAmount
         );
-        check("Order: " . print_r($order, true));
         $transactionData = array_merge($transactionData, $this->get_merchant_info());
         $rgw = new RestGateway();
 
@@ -431,14 +428,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         } else {
             $rgw->createReSale($transactionData);
         }
-        check("Reauth request: \n\n " . print_r($transactionData, true));
-        check("Recurring payment processed result: \n\n" . print_r($rgw->Result, true));
 
         $isErr = $this->get_error_string($rgw);
 
         if ($isErr) {
             WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($order);
         } else {
+            $refNumber = $rgw->Result["data"]["referenceNumber"];
+            $order->payment_complete($refNumber);
             WC_Subscriptions_Manager::process_subscription_payments_on_order($order);
         }
     }
@@ -459,7 +456,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
             else {
                 $rgw->performVoid($refundData);
-                if ($this->get_error_string($rgw)) return false;
+                if ($this->get_error_string($rgw)) {
+                    return false;
+                }
             }
         }
         return true; // unknown error, refund failed
