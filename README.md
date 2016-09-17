@@ -16,8 +16,6 @@ This plugin allows processing WooCommerce transactions through your goEmerchant 
 
 = Using the Plugin =
 
-* Download the plugin's zip folder, then activate it in your Wordpress installation.
-
 * On your dashboard, navigate to WooCommerce -> Settings -> Checkout -> goEmerchant, and enter your account information. Click "Save Settings".
 
 = Author =
@@ -25,6 +23,12 @@ This plugin allows processing WooCommerce transactions through your goEmerchant 
 Brought to you by [Kevin DeMoura] for goemerchant.com.
 
 == Installation ==
+1. Download the plugin's zip folder. 
+2. On your Wordpress dashboard side menu, navigate to Plugins --> Add New.
+3. Click "Upload Plugin".
+4. Your computer's file browser will appear. Use it to select the plugin's zip folder.
+
+OR
 
 1. Upload the plugin folder to the `/wp-content/plugins/` directory
 2. Activate the plugin through the 'Plugins' menu in WordPress.
