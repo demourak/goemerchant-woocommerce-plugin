@@ -97,12 +97,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'refunds',
             'subscriptions', 
             'subscription_cancellation',
-            //'gateway_scheduled_payments',
             'subscription_suspension', 
             'subscription_reactivation',
             'subscription_amount_changes',
-            'subscription_date_changes',
-            //'subscription_payment_method_change'
+            'subscription_date_changes'
             ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
@@ -393,6 +391,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($error_msg) {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error'); // informs user of decline/error
             $order->update_status('failed');
+            $order->add_order_note($error_msg);
             return;
         }
 
@@ -402,6 +401,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             // pass in refNum as WC transaction_id 
             $order->payment_complete($refNumber);
             wc_add_notice(MSG_AUTH_APPROVED, 'success');
+            $order->add_order_note(MSG_AUTH_APPROVED);
 
             if (wcs_order_contains_subscription($order)) {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
@@ -431,9 +431,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     /**
      * Triggered by WooCommerce when a renewal payment is due. Processes the order as a
      * reauthorization of the original order that contained the subscription. WC supplies the correct
-     * amount. 
+     * amount for the renewal. Renewal will always process using the same credit card as the parent order.
      * @param type $totalAmount
-     * @param type $order
+     * @param type $order Renewal order to be processed
      */
     function process_subscription_payment($totalAmount, $order) {
         if ($this->get_option('auto-renew') == 'no') {
@@ -461,11 +461,19 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         } else {
             $refNumber = $rgw->Result["data"]["referenceNumber"];
             $order->payment_complete($refNumber);
+            $order->add_order_note(MSG_AUTH_APPROVED);
             WC_Subscriptions_Manager::process_subscription_payments_on_order($order);
         }
     }
 
-    public function process_refund( $order_id, $amount = null) {
+    /**
+     * 
+     * @param type $order_id Order to be refunded.
+     * @param type $amount Amount to be refunded
+     * @param type $reason Reason for refund (visible to customer)
+     * @return \WP_Error|boolean 
+     */
+    public function process_refund( $order_id, $amount = null, $reason = '') {
         $order = wc_get_order($order_id);
         $refundData = array (
             'refNumber' => $order->get_transaction_id(),
@@ -476,7 +484,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         $rgw->createCredit($refundData);
         if ($this->get_error_string($rgw)) { // credit failed, try void
-            if ($amount != $order->get_total()) { // no partial voids
+            if ($amount != $order->get_total()) { // disallow partial voids
                return new WP_Error( 'partialVoidError', ERR_PARTIAL_VOID );
             }
             else {
@@ -486,7 +494,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 }
             }
         }
-        return true; // unknown error, refund failed
+        return true; // If no error, report successful refund
     }
     
     /**
