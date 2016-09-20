@@ -340,7 +340,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
-        $saveCard = $_POST[$this->id . '-save-card'] == 'on';
+        $saveCard = 
+                $_POST[$this->id . '-save-card'] == 'on' || wcs_order_contains_subscription($order);
 
         $transactionData = array_merge($this->get_merchant_info(), $cust_info);
 
@@ -406,6 +407,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $order->payment_complete($refNumber);
             wc_add_notice(MSG_AUTH_APPROVED, 'success');
             $order->add_order_note(MSG_AUTH_APPROVED);
+            
+            if ($saveCard && !$useSavedCard) { // save user's card if desired
+                $vaultData = array_merge($vaultData, $this->get_vault_info());
+                $this->save_cc_to_vault($vaultData, new RestGateway());
+            }
 
             if (wcs_order_contains_subscription($order)) {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
@@ -416,10 +422,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                             $subscription->id, 'recurring_parent_reference_number', $refNumber);
                 }
             }
-            if ($saveCard && !$useSavedCard) { // save user's card if desired
-                $vaultData = array_merge($vaultData, $this->get_vault_info());
-                $this->save_cc_to_vault($vaultData, new RestGateway());
-            }
+            
 
             // Return thank you redirect
             return array(
