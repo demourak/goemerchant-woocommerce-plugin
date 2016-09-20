@@ -611,7 +611,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
     /**
      * 
-     * @param type $isQuery
+     * @param boolean $isQuery If the vault info is for a REST query or a normal
+     * transaction.
      * @return array Array with a single item, either the vaultKey or queryVaultKey
      */
     function get_vault_info($isQuery = false) {
