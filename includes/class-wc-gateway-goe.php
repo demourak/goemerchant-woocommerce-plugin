@@ -21,7 +21,7 @@ define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
                 . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
 
 // define constants for display
-define("MSG_AUTH_APPROVED", "Your payment has been processed.");
+define("MSG_AUTH_APPROVED", "Your payment has been approved.");
 define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
 define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
@@ -100,7 +100,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'subscription_suspension', 
             'subscription_reactivation',
             'subscription_amount_changes',
-            'subscription_date_changes'
+            'subscription_date_changes',
+            'subscription_payment_method_change',
+            'subscription_payment_method_change_customer'
             ); 
         $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
@@ -128,7 +130,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         //add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
         add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
-        
+        add_action( "woocommerce_subscriptions_changed_failing_payment_method_{$this->id}", 'goe_update_failed_payment_method', 10, 2);
+        add_action( "woocommerce_subscription_renewal_payment_failed", 'goe_renewal_payment_failed', 10, 1);
         add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
         //add_filter( 'woocommerce_subscription_periods', array( $this, 'filter_recurring_frequencies'), 10, 1 );
         //add_filter( 'woocommerce_subscription_period_interval_strings', 'goe_do_not_allow_non_single_billing_intervals', 10 );
@@ -392,6 +395,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error'); // informs user of decline/error
             $order->update_status('failed');
             $order->add_order_note($error_msg);
+            check("Order: " . print_r($order, true));
             return;
         }
 
@@ -458,6 +462,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $order->update_status('failed');
             $order->add_order_note($errMsg);
             WC_Subscriptions_Manager::process_subscription_payment_failure_on_order($order);
+            $order->set_payment_method($this);
         } else {
             $refNumber = $rgw->Result["data"]["referenceNumber"];
             $order->payment_complete($refNumber);
@@ -509,6 +514,22 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $refNum = get_post_meta($subscription->id, 'recurring_parent_reference_number', true);
         update_post_meta($renewal_order->id, 'recurring_parent_reference_number', $refNum);
         return $renewal_order;
+    }
+    
+    function goe_renewal_payment_failed($subscription) {
+        check("Sub: " . print_r($subscription, true));
+    }
+    
+    /**
+     * Update the customer token IDs for a subscription after a customer used the gateway to successfully complete the payment
+     * for an automatic renewal payment which had previously failed.
+     *
+     * @param WC_Order $original_order The original order in which the subscription was purchased.
+     * @param WC_Order $renewal_order The order which recorded the successful payment (to make up for the failed automatic payment).
+     * @return void
+     */
+    function goe_update_failed_payment_method($original_order, $new_renewal_order) {
+        update_post_meta($original_order->id, 'recurring_parent_reference_number', get_post_meta($new_renewal_order->id, 'recurring_parent_reference_number', true));
     }
 
     /**
