@@ -29,7 +29,7 @@ class Goemerchant_Plugin {
      */
     public function __construct() {
         add_action( 'plugins_loaded', array($this, 'init') );
-        add_filter( 'woocommerce_payment_gateways', array($this, 'register_gateway') );
+        add_filter( 'woocommerce_payment_gateways', array($this, 'register_gateway') ); // add as WC gateway
 
         register_activation_hook( __FILE__, array($this, 'install') );
     }
