@@ -21,7 +21,7 @@ define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
                 . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
 
 // define constants for display
-define("MSG_AUTH_APPROVED", "Your payment has been approved.");
+define("MSG_AUTH_APPROVED", "Your payment has been approved and is being processed.");
 define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
 define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
@@ -319,6 +319,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $vaultData = array();
 
         $order = wc_get_order($order_id);
+        
+        // if amt is 0, user is just changing the payment method for their subscription
+        $changePaymentMethod = $order->get_total() == 0;
 
         // get customer billing information from WC
         $cust_info = array(
@@ -340,11 +343,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
-        $saveCard = 
-                $_POST[$this->id . '-save-card'] == 'on' || wcs_order_contains_subscription($order);
+        $saveCard = // save card if desired or if auto-renew subscriptions is on
+                $_POST[$this->id . '-save-card'] == 'on' || 
+                (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes');
 
         $transactionData = array_merge($this->get_merchant_info(), $cust_info);
-
+        $vaultId = "";
         //process saved or new card based on input
         if ($useSavedCard) {
             if (!$_POST[$this->id . '-selected-card']) {
@@ -352,8 +356,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
                 return;
             }
+            $vaultId = $_POST[$this->id . '-selected-card'];
             $vaultTransactionData = array_merge(
-                    $transactionData, $this->get_vault_info(), array('vaultId' => $_POST[$this->id . '-selected-card']));
+                    $transactionData, $this->get_vault_key(), array('vaultId' => $vaultId));
 
             $savedCardCvv = $_POST[$this->id . '-card-cvc-saved'];
 
@@ -363,10 +368,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
             $vaultTransactionData = array_merge(
                     $vaultTransactionData, array('cVV' => $savedCardCvv));
-            if ($authOnly) {
-                $rgw->createAuthUsing1stPayVault($vaultTransactionData);
-            } else {
-                $rgw->createSaleUsing1stPayVault($vaultTransactionData);
+            if (!$changePaymentMethod) {
+                if ($authOnly) {
+                    $rgw->createAuthUsing1stPayVault($vaultTransactionData);
+                } else {
+                    $rgw->createSaleUsing1stPayVault($vaultTransactionData);
+                }
             }
         } else {
             if (!$this->get_cc() || $this->is_cvv_blank()) {
@@ -383,10 +390,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 }
                 $saleTransactionData = array_merge($transactionData, $this->get_cc());
             }
-            if ($authOnly) {
-                $rgw->createAuth($saleTransactionData);
-            } else {
-                $rgw->createSale($saleTransactionData);
+            if (!$changePaymentMethod) {
+                if ($authOnly) {
+                    $rgw->createAuth($saleTransactionData);
+                } else {
+                    $rgw->createSale($saleTransactionData);
+                }
             }
             $vaultData = $saleTransactionData;
         }
@@ -396,34 +405,32 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             wc_add_notice(__('Payment error: ', 'woothemes') . $error_msg, 'error'); // informs user of decline/error
             $order->update_status('failed');
             $order->add_order_note($error_msg);
-            check("Order: " . print_r($order, true));
             return;
         }
 
-        if ($rgw->Result['isSuccess']) {
-            $refNumber = $rgw->Result["data"]["referenceNumber"];
-            //handles order stock, marks status as 'processing'
+        if ($rgw->Result['isSuccess'] || $changePaymentMethod) {
+            $refNumber = $rgw->Result["data"]["referenceNumber"]; //handles order stock, marks status as 'processing'
             // pass in refNum as WC transaction_id 
-            $order->payment_complete($refNumber);
-            wc_add_notice(MSG_AUTH_APPROVED, 'success');
-            $order->add_order_note(MSG_AUTH_APPROVED);
-            
-            if ($saveCard && !$useSavedCard) { // save user's card if desired
-                $vaultData = array_merge($vaultData, $this->get_vault_info());
-                $this->save_cc_to_vault($vaultData, new RestGateway());
+            if (!$changePaymentMethod) {
+                $order->payment_complete($refNumber);
+                wc_add_notice(MSG_AUTH_APPROVED, 'success');
+                $order->add_order_note(MSG_AUTH_APPROVED);
+            }
+
+            if ($saveCard && !$useSavedCard) { 
+                $vaultData = array_merge($vaultData, $this->get_vault_key());
+                $vaultId = $this->save_cc_to_vault($vaultData, new RestGateway());
             }
 
             if (wcs_order_contains_subscription($order)) {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
                 update_post_meta(
-                        $order->id, 'recurring_parent_reference_number', $refNumber);
+                        $order->id, 'vault_id', $vaultId);
                 foreach ($subscriptions as $subscription_id => $subscription) {
                     update_post_meta(
-                            $subscription->id, 'recurring_parent_reference_number', $refNumber);
+                            $subscription->id, 'vault_id', $vaultId);
                 }
             }
-            
-
             // Return thank you redirect
             return array(
                 'result' => 'success',
@@ -447,16 +454,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return;
         }
         $transactionData = array(
-            'refNumber' => get_post_meta($order->id, 'recurring_parent_reference_number', true),
+            'vaultId' => get_post_meta($order->id, 'vault_id', true),
             'transactionAmount' => $totalAmount
         );
-        $transactionData = array_merge($transactionData, $this->get_merchant_info());
+        $transactionData = array_merge($transactionData, $this->get_merchant_info(), $this->get_vault_key());
         $rgw = new RestGateway();
 
         if ($this->get_option('auth-only') == 'yes') {
-            $rgw->createReAuth($transactionData);
+            $rgw->createAuthUsing1stPayVault($transactionData);
         } else {
-            $rgw->createReSale($transactionData);
+            $rgw->createSaleUsing1stPayVault($transactionData);
         }
 
         $errMsg = $this->get_error_string($rgw);
@@ -514,13 +521,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return type
      */
     function link_recurring_child($renewal_order, $subscription) {
-        $refNum = get_post_meta($subscription->id, 'recurring_parent_reference_number', true);
-        update_post_meta($renewal_order->id, 'recurring_parent_reference_number', $refNum);
+        $vaultId = get_post_meta($subscription->id, 'vault_id', true);
+        update_post_meta($renewal_order->id, 'vault_id', $vaultId);
         return $renewal_order;
     }
     
     function goe_renewal_payment_failed($subscription) {
-        check("Sub: " . print_r($subscription, true));
+        //check("Sub: " . print_r($subscription, true));
     }
     
     /**
@@ -555,7 +562,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     /**
      * Save credit card to the signed-in user's vault.
      * @param array $requestData data array to send to REST gateway
-     * @param type $restGW
+     * @param ResrGateway $restGW
+     * @return Vault ID of cc if save is successful, null otherwise
      */
     function save_cc_to_vault($requestData, $restGW) {
         // perform validation before submitting to gateway
@@ -597,6 +605,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             } else {
                 wc_add_notice(MSG_PAYMENT_METHOD_SAVED, 'success');
             }
+            return $result["data"]["id"];
         }
         return;
     }
@@ -608,7 +617,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     function delete_cc_from_vault($ccid) {
         $rgw = new RestGateway();
-        $data = array_merge($this->get_merchant_info(), $this->get_vault_info(), array("id" => $ccid));
+        $data = array_merge($this->get_merchant_info(), $this->get_vault_key(), array("id" => $ccid));
         $rgw->deleteVaultCreditCardRecord($data);
     }
 
@@ -618,7 +627,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * transaction.
      * @return array Array with a single item, either the vaultKey or queryVaultKey
      */
-    function get_vault_info($isQuery = false) {
+    function get_vault_key($isQuery = false) {
         $vaultKey = $this->get_option('vault-key-prefix') . $this->currentUserID;
         if ($isQuery) {
             return array(
@@ -725,7 +734,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 '<option value="">Choose saved card</option>';
         // query for cards using REST
         $rgw = new RestGateway();
-        $data = array_merge($this->get_merchant_info(), $this->get_vault_info(TRUE));
+        $data = array_merge($this->get_merchant_info(), $this->get_vault_key(TRUE));
         $rgw->queryVaultForCreditCardRecords($data);
         $result = $rgw->Result;
         
@@ -826,11 +835,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
                         ' style="width:100px" /></p>' : "";
             
+                $sub_msg = 
+                        $this->get_option('auto-renew') == 'yes' ? 
+                        "(If order contains subscription, card will be saved for renewal charges.)" : 
+                        "";
+                
             array_push(
                     $default_fields,
-                    '<p class="form-row form-row-wide">
-				<label for="' . esc_attr($this->id) . '-save-card">' . __('Save card to My Account?', 'woocommerce-cardpay-' . $this->id) . ' </label>
+                    '
 				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
+                                    <label for="' . esc_attr($this->id) . '-save-card">' . __("Save card to My Account? {$sub_msg}", 'woocommerce-cardpay-' . $this->id) . ' </label>
 			</p>',
                     $existingCardChoice,
                     $this->get_existing_cards_menu(),
@@ -949,7 +963,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $cardInfo = $this->get_cc();
                 if ($this->is_valid_expiry()) {
                     if ($this->mod10Check($cardInfo['cardNumber'])) {
-                        $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_info());
+                        $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_key());
                         $this->save_cc_to_vault($vaultRequest, new RestGateway());
                     } else {
                         wc_print_notice(ERR_CARD_NUMBER_INVALID, 'error');
@@ -984,7 +998,7 @@ BUTTON;
         $pageID = get_option( 'woocommerce_myaccount_page_id' );
         $my_account_url = get_permalink( $pageID );
         $rgw = new RestGateway();
-        $data = array_merge($this->get_merchant_info(), $this->get_vault_info(true));
+        $data = array_merge($this->get_merchant_info(), $this->get_vault_key(true));
         $rgw->queryVaultForCreditCardRecords($data);
         $result = $rgw->Result;
         echo "<h2>Saved Credit Cards</h2>";
