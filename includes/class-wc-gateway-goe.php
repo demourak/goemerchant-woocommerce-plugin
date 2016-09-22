@@ -24,6 +24,7 @@ define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
 define("MSG_AUTH_APPROVED", "Your payment has been approved and is being processed.");
 define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
 define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
+define("MSG_AUTO_RENEW", "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
 define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
 define("ERR_TRY_DIFFERENT_CARD", "Please try a different card.<br>");
@@ -362,12 +363,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $order = wc_get_order($order_id);
         
+        $parent_subscription_id = get_post_meta($order->id, 'subscription_id', true); // will be non-null if this is a renewal order
         $authOnly = $this->get_option('auth-only') == 'yes';
         $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
         $saveCard = // save card if desired or if auto-renew subscriptions is on
                 $_POST[$this->id . '-save-card'] == 'on' || 
-                (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes');
-        $parent_subscription_id = get_post_meta($order->id, 'subscription_id', true); // will be non-null if this is a renewal order
+                (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes') ||
+                $parent_subscription_id;
+        
         
         // if amt is 0, user is just changing the payment method for their subscription
         if ($order->get_total() == 0) {
@@ -876,7 +879,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             
                 $sub_msg = 
                         $this->get_option('auto-renew') == 'yes' ? 
-                        "(If order contains subscription, card will automatically be saved for renewal charges.)" : 
+                        MSG_AUTO_RENEW : 
                         "";
                 
             array_push(
