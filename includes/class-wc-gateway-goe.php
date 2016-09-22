@@ -128,13 +128,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         add_action( 'update_option', array( $this, 'validate_goe_option'), 10, 3);
         add_action( 'admin_notices', array( $this, 'print_admin_error'), 10 );
         
-        //add_action( 'woocommerce_scheduled_subscription_payment', array( $this, 'prepare_renewal'), 10, 1);
         add_action( "woocommerce_scheduled_subscription_payment_{$this->id}", array( $this, 'process_subscription_payment'), 10, 2);
-        add_action( "woocommerce_subscriptions_changed_failing_payment_method_{$this->id}", 'goe_update_failed_payment_method', 10, 2);
-        add_action( "woocommerce_subscription_renewal_payment_failed", 'goe_renewal_payment_failed', 10, 1);
         add_filter( 'wcs_renewal_order_created', array( $this, 'link_recurring_child'), 10, 2);
-        //add_filter( 'woocommerce_subscription_periods', array( $this, 'filter_recurring_frequencies'), 10, 1 );
-        //add_filter( 'woocommerce_subscription_period_interval_strings', 'goe_do_not_allow_non_single_billing_intervals', 10 );
     }
 
     /**
@@ -305,6 +300,53 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         }
     }
+    
+    /**
+     * 
+     * @param boolean $useSavedCard true if the customer has selected "Use Existing Card"
+     * @return array|NULL If the change was successful
+     */
+    function change_subscription_payment_method($useSavedCard) {
+        if ($useSavedCard) {
+            if (!$_POST[$this->id . '-selected-card']) {
+                wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
+                return;
+            }
+            $newVaultId = $_POST[$this->id . '-selected-card'];
+            update_post_meta(
+                    $order->id, 'vault_id', $newVaultId);
+            return array(
+                'result' => 'success',
+                'redirect' => $this->get_return_url($order)
+            );
+        } else {
+            $cust_info = array( // if entering a new card, grab default billing address info
+                'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
+                // Set IP Address for fraud screening
+                'ipAddress' => WC_Geolocation::get_ip_address(),
+                'ownerName' => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
+                'ownerCity' => get_user_meta(get_current_user_id(), "billing_city", true),
+                'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
+                'ownerState' => get_user_meta(get_current_user_id(), "billing_state", true),
+                'ownerStreet' => get_user_meta(get_current_user_id(), "billing_address_1", true),
+                'ownerStreet2' => get_user_meta(get_current_user_id(), "billing_address_2", true),
+                'ownerZip' => get_user_meta(get_current_user_id(), "billing_postcode", true)
+            );
+
+            $requestData = array_merge(
+                    $this->get_merchant_info(), $cust_info, $this->get_cc(), $this->get_vault_key());
+            $newVaultId = $this->save_cc_to_vault($requestData, new RestGateway());
+            if ($newVaultId) {
+                update_post_meta(
+                        $order->id, 'vault_id', $newVaultId);
+                return array(
+                    'result' => 'success',
+                    'redirect' => $this->get_return_url($order)
+                );
+            }
+            return;
+        }
+    }
 
     /**
      * Process the gateway integration
@@ -320,9 +362,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $order = wc_get_order($order_id);
         
+        $authOnly = $this->get_option('auth-only') == 'yes';
+        $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
+        $saveCard = // save card if desired or if auto-renew subscriptions is on
+                $_POST[$this->id . '-save-card'] == 'on' || 
+                (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes');
+        
         // if amt is 0, user is just changing the payment method for their subscription
-        $changePaymentMethod = $order->get_total() == 0;
-
+        if ($order->get_total() == 0) {
+            return $this->change_subscription_payment_method($useSavedCard);
+        }
+        
         // get customer billing information from WC
         $cust_info = array(
             // Set order ID to match woocommerce order number
@@ -340,12 +390,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'ownerPhone' => $order->billing_phone,
             'transactionAmount' => $order->get_total()
         );
-
-        $authOnly = $this->get_option('auth-only') == 'yes';
-        $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
-        $saveCard = // save card if desired or if auto-renew subscriptions is on
-                $_POST[$this->id . '-save-card'] == 'on' || 
-                (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes');
 
         $transactionData = array_merge($this->get_merchant_info(), $cust_info);
         $vaultId = "";
@@ -368,12 +412,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
             $vaultTransactionData = array_merge(
                     $vaultTransactionData, array('cVV' => $savedCardCvv));
-            if (!$changePaymentMethod) {
-                if ($authOnly) {
-                    $rgw->createAuthUsing1stPayVault($vaultTransactionData);
-                } else {
-                    $rgw->createSaleUsing1stPayVault($vaultTransactionData);
-                }
+            if ($authOnly) {
+                $rgw->createAuthUsing1stPayVault($vaultTransactionData);
+            } else {
+                $rgw->createSaleUsing1stPayVault($vaultTransactionData);
             }
         } else {
             if (!$this->get_cc() || $this->is_cvv_blank()) {
@@ -390,12 +432,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 }
                 $saleTransactionData = array_merge($transactionData, $this->get_cc());
             }
-            if (!$changePaymentMethod) {
-                if ($authOnly) {
-                    $rgw->createAuth($saleTransactionData);
-                } else {
-                    $rgw->createSale($saleTransactionData);
-                }
+            if ($authOnly) {
+                $rgw->createAuth($saleTransactionData);
+            } else {
+                $rgw->createSale($saleTransactionData);
             }
             $vaultData = $saleTransactionData;
         }
@@ -408,20 +448,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return;
         }
 
-        if ($rgw->Result['isSuccess'] || $changePaymentMethod) {
+        if ($rgw->Result['isSuccess']) {
             $refNumber = $rgw->Result["data"]["referenceNumber"]; //handles order stock, marks status as 'processing'
             // pass in refNum as WC transaction_id 
-            if (!$changePaymentMethod) {
-                $order->payment_complete($refNumber);
-                wc_add_notice(MSG_AUTH_APPROVED, 'success');
-                $order->add_order_note(MSG_AUTH_APPROVED);
-            }
+            $order->payment_complete($refNumber);
+            wc_add_notice(MSG_AUTH_APPROVED, 'success');
+            $order->add_order_note(MSG_AUTH_APPROVED);
 
-            if ($saveCard && !$useSavedCard) { 
+            if ($saveCard && !$useSavedCard) {
                 $vaultData = array_merge($vaultData, $this->get_vault_key());
                 $vaultId = $this->save_cc_to_vault($vaultData, new RestGateway());
             }
-
             if (wcs_order_contains_subscription($order)) {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
                 update_post_meta(
@@ -524,10 +561,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $vaultId = get_post_meta($subscription->id, 'vault_id', true);
         update_post_meta($renewal_order->id, 'vault_id', $vaultId);
         return $renewal_order;
-    }
-    
-    function goe_renewal_payment_failed($subscription) {
-        //check("Sub: " . print_r($subscription, true));
     }
     
     /**
@@ -837,7 +870,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             
                 $sub_msg = 
                         $this->get_option('auto-renew') == 'yes' ? 
-                        "(If order contains subscription, card will be saved for renewal charges.)" : 
+                        "(If order contains subscription, card will automatically be saved for renewal charges.)" : 
                         "";
                 
             array_push(
