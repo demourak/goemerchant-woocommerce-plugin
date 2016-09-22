@@ -307,7 +307,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @param boolean $useSavedCard true if the customer has selected "Use Existing Card"
      * @return array|NULL If the change was successful
      */
-    function change_subscription_payment_method($useSavedCard) {
+    function change_subscription_payment_method($useSavedCard, $order) {
         if ($useSavedCard) {
             if (!$_POST[$this->id . '-selected-card']) {
                 wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
@@ -374,7 +374,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         
         // if amt is 0, user is just changing the payment method for their subscription
         if ($order->get_total() == 0) {
-            return $this->change_subscription_payment_method($useSavedCard);
+            return $this->change_subscription_payment_method($useSavedCard, $order);
         }
         
         // get customer billing information from WC
