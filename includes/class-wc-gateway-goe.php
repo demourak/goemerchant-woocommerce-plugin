@@ -367,6 +367,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $saveCard = // save card if desired or if auto-renew subscriptions is on
                 $_POST[$this->id . '-save-card'] == 'on' || 
                 (wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes');
+        $parent_subscription_id = get_post_meta($order->id, 'subscription_id', true); // will be non-null if this is a renewal order
         
         // if amt is 0, user is just changing the payment method for their subscription
         if ($order->get_total() == 0) {
@@ -468,6 +469,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                             $subscription->id, 'vault_id', $vaultId);
                 }
             }
+            elseif ($parent_subscription_id) { // the order is a failed renewal order that the customer is trying to pay
+                // the payment was successful so the card should be saved for renewal charges
+                update_post_meta($parent_subscription_id, 'vault_id', $vaultId); 
+            }
             // Return thank you redirect
             return array(
                 'result' => 'success',
@@ -560,6 +565,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     function link_recurring_child($renewal_order, $subscription) {
         $vaultId = get_post_meta($subscription->id, 'vault_id', true);
         update_post_meta($renewal_order->id, 'vault_id', $vaultId);
+        update_post_meta($renewal_order->id, 'subscription_id', $subscription->id);
         return $renewal_order;
     }
     
@@ -856,9 +862,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             </p>'
         );
 
-        //if ( ! $this->supports( 'credit_card_form_cvc_on_saved_method' && !is_account_page()) ) {
+        if ( !is_account_page()) {
             $default_fields['card-cvc-field'] = $cvc_field;
-        //}
+        }
         
         if (is_user_logged_in() && !is_account_page()) {
                 $cvc_field_saved =  $this->get_existing_cards_menu() ?
