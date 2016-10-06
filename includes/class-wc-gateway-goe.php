@@ -1,5 +1,5 @@
 <?php
-
+require_once 'debug.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
@@ -336,7 +336,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             );
 
             $requestData = array_merge(
-                    $this->get_merchant_info(), $cust_info, $this->get_cc(), $this->get_vault_key());
+                    $this->get_merchant_info(), $cust_info, $this->get_cc(), array(
+                        'vaultKey' => get_post_meta($subscription->id, 'vault_key', true)
+                        ));
             $newVaultId = $this->save_cc_to_vault($requestData, new RestGateway(), true);
             if ($newVaultId) {
                 update_post_meta(
@@ -473,11 +475,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 foreach ($subscriptions as $subscription_id => $subscription) {
                     update_post_meta(
                             $subscription->id, 'vault_id', $vaultId);
+                    update_post_meta(
+                            $subscription->id, 'vault_key', $this->get_vault_key(false, true));
                 }
             }
             elseif ($parent_subscription_id) { // the order is a failed renewal order that the customer is trying to pay
                 // the payment was successful so the card should be saved for renewal charges
                 update_post_meta($parent_subscription_id, 'vault_id', $vaultId); 
+                update_post_meta($parent_subscription_id, 'vault_key', $this->get_vault_key(false, true));
             }
             // Return thank you redirect
             return array(
@@ -505,11 +510,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $subscriptionId = get_post_meta($order->id, 'subscription_id', true);
         
         $transactionData = array(
-            'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
-            'vaultId' => get_post_meta($subscriptionId, 'vault_id', true),
+            'orderId'  => $this->get_option('order-prefix') . $order->get_order_number(),
+            'vaultId'  => get_post_meta($subscriptionId, 'vault_id', true),
+            'vaultKey' => get_post_meta($subscriptionId, 'vault_key', true),
             'transactionAmount' => $totalAmount
         );
-        $transactionData = array_merge($transactionData,  $this->get_merchant_info(), $this->get_vault_key());
+        $transactionData = array_merge($transactionData,  $this->get_merchant_info());
         $rgw = new RestGateway();
         
         if ($this->get_option('auth-only') == 'yes') {
@@ -577,22 +583,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return type
      */
     function link_recurring_child($renewal_order, $subscription) {
-        $vaultId = get_post_meta($subscription->id, 'vault_id', true);
-        update_post_meta($renewal_order->id, 'vault_id', $vaultId);
         update_post_meta($renewal_order->id, 'subscription_id', $subscription->id);
         return $renewal_order;
-    }
-    
-    /**
-     * Update the customer token IDs for a subscription after a customer used the gateway to successfully complete the payment
-     * for an automatic renewal payment which had previously failed.
-     *
-     * @param WC_Order $original_order The original order in which the subscription was purchased.
-     * @param WC_Order $renewal_order The order which recorded the successful payment (to make up for the failed automatic payment).
-     * @return void
-     */
-    function goe_update_failed_payment_method($original_order, $new_renewal_order) {
-        update_post_meta($original_order->id, 'recurring_parent_reference_number', get_post_meta($new_renewal_order->id, 'recurring_parent_reference_number', true));
     }
 
     /**
@@ -620,7 +612,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     function save_cc_to_vault($requestData, $restGW, $isPaymentChange = false) {
         // perform validation before submitting to gateway
-        
+        $requestData = array_merge($requestData, $this->get_customer_billing());
         
         $restGW->createVaultCreditCardRecord(
                 $requestData);
@@ -683,13 +675,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * transaction.
      * @return array Array with a single item, either the vaultKey or queryVaultKey
      */
-    function get_vault_key($isQuery = false) {
+    function get_vault_key($isQuery = false, $single = false) {
         $vaultKey = $this->get_option('vault-key-prefix') . $this->currentUserID;
         if ($isQuery) {
             return array(
                 'queryVaultKey' => $vaultKey
             );
-        } else {
+        }
+        elseif ($single) {
+            return $vaultKey;
+        }
+        else {
             return array(
                 'vaultKey' => $vaultKey
             );
@@ -706,6 +702,24 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         );
         
         return $merchant_info;
+    }
+    
+    /**
+     * 
+     * @return array array of users default WC billing address
+     */
+    function get_customer_billing() {
+        return array(// if entering a new card, grab default billing address info
+                // Set IP Address for fraud screening
+                'ipAddress'    => WC_Geolocation::get_ip_address(),
+                'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
+                'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
+                'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
+                'ownerState'   => get_user_meta(get_current_user_id(), "billing_state", true),
+                'ownerStreet'  => get_user_meta(get_current_user_id(), "billing_address_1", true),
+                'ownerStreet2' => get_user_meta(get_current_user_id(), "billing_address_2", true),
+                'ownerZip'     => get_user_meta(get_current_user_id(), "billing_postcode", true)
+            );
     }
     
     /**
@@ -1248,6 +1262,7 @@ class RestGateway {
           $this->Result = array();
           $jsondata = json_encode($data, JSON_PRETTY_PRINT);
           $jsondata = utf8_encode($jsondata);
+          //check(print_r(getdate(), true) . "JSON: {$jsondata}");
           $curl_handle=curl_init();
           curl_setopt($curl_handle, CURLOPT_URL, $url);
           curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
