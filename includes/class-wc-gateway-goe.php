@@ -1,5 +1,4 @@
 <?php
-require_once 'debug.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
@@ -1262,7 +1261,6 @@ class RestGateway {
           $this->Result = array();
           $jsondata = json_encode($data, JSON_PRETTY_PRINT);
           $jsondata = utf8_encode($jsondata);
-          //check(print_r(getdate(), true) . "JSON: {$jsondata}");
           $curl_handle=curl_init();
           curl_setopt($curl_handle, CURLOPT_URL, $url);
           curl_setopt($curl_handle, CURLOPT_CUSTOMREQUEST, "POST");
