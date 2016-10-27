@@ -1,4 +1,6 @@
 <?php
+include_once 'debug.php';
+require_once 'class-invalid-input-exception.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
@@ -19,7 +21,7 @@ class URLPaths
 }
 
 define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
-                . 'Click <a href=' . URLPaths::URL_TRANS_CENTER_SUPPORT . '>here</a> '
+                . 'Click <a href=' . esc_url(URLPaths::URL_TRANS_CENTER_SUPPORT) . '>here</a> '
                 . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
 
 // define constants for display
@@ -29,10 +31,13 @@ define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
 define("MSG_AUTO_RENEW", "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.");
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
 define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
+define("ERR_CARD_DELETE_INVALID", "Invalid vault ID received for delete-card operation.");
+define("ERR_CARD_CVC_INVALID", "Invalid card CVC.");
+define("ERR_EXPIRY_INVALID_FORMAT", "Your expiration date is in an incorrect format.");
 define("ERR_TRY_DIFFERENT_CARD", "Please try a different card.<br>");
 define("ERR_BAD_CARD", "Merchant does not accept this card.<br>");
 define("ERR_CARD_DECLINED", "Authorization declined. Please try a different card or contact your issuing bank for more information.<br>");
-define("ERR_MISSING_FIELDS", "Some required fields (*) are missing. Please check below and try again.");
+define("ERR_MISSING_FIELDS", "Some required fields (*) are invalid or missing. Please check below and try again.");
 define("ERR_PROBLEM_PROCESSING", "Please try again later.");
 define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
 define("ERR_PARTIAL_VOID", "Partial void not allowed. Please wait for transaction to settle, or enter full amount.");
@@ -58,13 +63,13 @@ define("DEFAULT_INSTRUCTIONS", 'Thank you for your purchase!');
 
 define("TITLE_GATEWAY_ID", "Gateway ID (Merchant Key)");
 define("DESC_GATEWAY_ID", 'You can find your gateway and processor ID by logging into the transaction center and following the steps listed '
-                        . '<a href=' . URLPaths::URL_GATEWAY_OPTIONS_SUPPORT . '>here</a>.');
+                        . '<a href=' . esc_url(URLPaths::URL_GATEWAY_OPTIONS_SUPPORT) . '>here</a>.');
 
 define('TITLE_PROCESSOR_ID', 'Processor ID');
 
 define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for settlement in'
                         . ' your Transaction Center in order to capture the funds.'
-                        . ' Visit our <a href=' . URLPaths::URL_SUBMIT_CC_BATCH_SUPPORT . '>support page</a>'
+                        . ' Visit our <a href=' . esc_url(URLPaths::URL_SUBMIT_CC_BATCH_SUPPORT) . '>support page</a>'
                         . ' for a walkthrough of settling transactions.');
 define("TITLE_AUTH_ONLY", "Authorize Only");
 
@@ -426,20 +431,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $rgw->createSaleUsing1stPayVault($vaultTransactionData);
             }
         } else {
-            if (!$this->get_cc() || $this->is_cvv_blank()) {
-                $this->add_missing_fields_notice();
-                return;
-            } elseif (!$this->is_valid_expiry()) {
-                wc_add_notice(ERR_CARD_EXPIRY_INVALID, 'error');
-                return;
-            } else {
-                $cardInfo = $this->get_cc();
-                if (!$this->mod10Check($cardInfo['cardNumber'])) {
-                    wc_add_notice(ERR_CARD_NUMBER_INVALID, 'error');
-                    return;
-                }
-                $saleTransactionData = array_merge($transactionData, $this->get_cc());
-            }
+            $saleTransactionData = array_merge($transactionData, $this->get_cc());
+
             if ($authOnly) {
                 $rgw->createAuth($saleTransactionData);
             } else {
@@ -610,11 +603,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * @return Vault ID of cc if save is successful, null otherwise
      */
     function save_cc_to_vault($requestData, $restGW, $isPaymentChange = false) {
-        // perform validation before submitting to gateway
+        // include default billing info with card record
         $requestData = array_merge($requestData, $this->get_customer_billing());
         
-        $restGW->createVaultCreditCardRecord(
-                $requestData);
+        $restGW->createVaultCreditCardRecord($requestData);
         $result = $restGW->Result;
         $unable = "Unable to save credit card: ";
         if ($result["isError"] == TRUE) {
@@ -630,9 +622,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     }
                 } else {
                     if (is_account_page()) {
-                        wc_print_notice($unable . $err, 'notice');
+                        wc_print_notice($unable . $err, 'error');
                     } else {
-                        wc_add_notice($unable . $err, 'notice');
+                        wc_add_notice($unable . $err, 'error');
                     }
                 }
             }
@@ -742,26 +734,82 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return false;
     }
     
+    function get_card_number() {
+        $cardNumber = sanitize_text_field( $_POST[$this->id . '-card-number'] );
+        $cardNumber = str_replace(array('-', ' '), '', $cardNumber);
+        if (
+                !ctype_digit($cardNumber)   ||
+                strlen( $cardNumber ) < 15  ||
+                strlen( $cardNumber ) > 16  ||
+                !$this->mod10Check($cardNumber)
+            ) {
+            throw new InvalidInputException(ERR_CARD_NUMBER_INVALID);
+        }
+        else {
+            return $cardNumber;
+        }
+    }
+    
+    /**
+     * 
+     * @return array Array containing the keys 'cardExpMonth' and 'cardExpYear'
+     * @throws InvalidInputException
+     */
+    function get_card_expiry() {
+        $cardExpiry = sanitize_text_field( $_POST[$this->id . '-card-expiry'] );
+        if (strlen( $cardExpiry ) == 7 || strlen( $cardExpiry ) == 9) {
+            $cardExpMonth = substr($cardExpiry, 0, 2);
+            $cardExpYear  = substr($cardExpiry, -2);
+        }
+        else {
+            throw new InvalidInputException(ERR_EXPIRY_INVALID_FORMAT);
+        }
+        
+        if (
+                !ctype_digit($cardExpMonth) ||
+                !ctype_digit($cardExpYear)  ||
+                $cardExpMonth < 1           ||
+                $cardExpMonth > 12          ||
+                $cardExpYear  < 0           ||
+                $cardExpYear  > 99          ||
+                $this->is_date_expired($cardExpMonth, $cardExpYear)
+                ) {
+            throw new InvalidInputException(ERR_CARD_EXPIRY_INVALID);
+        }
+        else {
+            return array (
+                'cardExpMonth' => $cardExpMonth,
+                'cardExpYear'  => $cardExpYear
+            );
+        }
+    }
+    
     /**
      * Get array with credit card info to be sent to REST gateway
-     * @return array Array of cc info, or FALSE if any required field is blank.
+     * @return array Array of cc info
+     * Raises exceptions for invalid input.
      */
     function get_cc() {
+        
+        $cvc = sanitize_text_field( $_POST[$this->id . '-card-cvc'] );
+        
         if (
-                $_POST[$this->id . '-card-number'] == "" ||
-                $_POST[$this->id . '-card-expiry'] == ""
-            ) {
-            return FALSE;
+                !ctype_digit($cvc) ||
+                strlen( $cvc ) < 3 ||
+                strlen( $cvc ) > 4
+                ) {
+            throw new InvalidInputException(ERR_CARD_CVC_INVALID);
         }
-            
-        $ccnum = str_replace(array('-', ' '), '', $_POST[$this->id . '-card-number']);
-        return array(
-            'cardNumber'   => $ccnum,
-            'cardExpMonth' => substr($_POST[$this->id . '-card-expiry'], 0, 2),
-            'cardExpYear'  => substr($_POST[$this->id . '-card-expiry'], -2),
-            'cVV'          => $_POST[$this->id . '-card-cvc'],
-            'cardType'     => $this->getCardType($ccnum)
+        $cardNumber = $this->get_card_number();
+        $result = array(
+            'cardNumber'   => $cardNumber,
+            'cVV'          => $cvc,
+            'cardType'     => $this->getCardType($cardNumber)
         );
+        $result = array_merge($result, $this->get_card_expiry());
+        return $result;
+        
+        
     }
     
     function is_cvv_blank() {
@@ -772,7 +820,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return $_POST[$this->id . '-card-cvc-saved'] == "";
     }
     
-    function isDateExpired($month, $year) {
+    function is_date_expired($month, $year) {
         if ($year == date("y")) {
             if ($month < date("m")) {
                 return true;
@@ -782,10 +830,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         }
         elseif ($year < date("y")) {
-            return false;
+            return true;
         }
         else {
-            return true;
+            return false;
         }
     }
     
@@ -1016,26 +1064,25 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return;
         }
         
-        if (isset($_POST[$this->id . '-card-number'], $_POST[$this->id . '-card-expiry'])) {
-            if ($this->get_cc()) {
-                $cardInfo = $this->get_cc();
-                if ($this->is_valid_expiry()) {
-                    if ($this->mod10Check($cardInfo['cardNumber'])) {
-                        $vaultRequest = array_merge($this->get_cc(), $this->get_merchant_info(), $this->get_vault_key());
-                        $this->save_cc_to_vault($vaultRequest, new RestGateway());
-                    } else {
-                        wc_print_notice(ERR_CARD_NUMBER_INVALID, 'error');
-                    }
-                } else {
-                    wc_print_notice(ERR_CARD_EXPIRY_INVALID, 'error');
-                }
-            } else {
-                $this->add_missing_fields_notice(true);
+        try {
+            if (isset($_POST[$this->id . '-card-number'], $_POST[$this->id . '-card-expiry'])) {
+                $cardNumber = $this->get_card_number();
+                $cardExpiryArray = $this->get_card_expiry();
+                $vaultRequest = array_merge(
+                        array('cardNumber' => $cardNumber), 
+                        array('cardType'   => $this->getCardType($cardNumber)), 
+                        $cardExpiryArray, 
+                        $this->get_merchant_info(), 
+                        $this->get_vault_key()
+                );
+                $this->save_cc_to_vault($vaultRequest, new RestGateway());
+            } elseif (isset($_POST[$this->id . "-delete-card"])) {
+                $this->delete_cc_from_vault($this->get_delete_card_id());
             }
-        } elseif (isset($_POST[$this->id . "-delete-card"])){
-            $this->delete_cc_from_vault($_POST[$this->id . "-delete-card"]);
+        } catch (InvalidInputException $exception) {
+            wc_print_notice($exception, 'error');
         }
-        
+
         echo $this->print_cc_table(); // show saved credit cards
         
         echo "<form action=\"{$my_account_url}\" method=\"post\">";
@@ -1047,6 +1094,16 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 <input type="submit" value="Add Card">
 </form>
 BUTTON;
+    }
+    
+    function get_delete_card_id() {
+        $vaultId = sanitize_text_field( $_POST[$this->id . "-delete-card"] );
+        if (ctype_digit($vaultId)) {
+            return $vaultId;
+        }
+        else {
+            throw new InvalidInputException(ERR_CARD_DELETE_INVALID);
+        }
     }
     
     /**
