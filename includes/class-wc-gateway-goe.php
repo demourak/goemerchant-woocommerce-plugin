@@ -44,6 +44,7 @@ define("ERR_PARTIAL_VOID", "Partial void not allowed. Please wait for transactio
 define("ERR_CHANGE_CARD", "There was an error changing your payment method. If using a new card, ensure that a card with the same account number does not already exist in your account.");
 define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
 define("PLEASE_ENTER_ID", "Please enter a valid gateway ID and processor ID.");
+define("ERR_INVALID_ID", "This merchant account is not active. Please try again later.");
 
 define("TITLE_SANDBOX", "Enable Sandbox/Validation");
 define("LABEL_SANDBOX", "Configure this plugin to process to a validation environment (secure-v.goemerchant.com).");
@@ -683,10 +684,22 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
     
+    function is_valid_GUID($string) {
+        $guid = str_replace('-', '', $string);
+        return strlen($guid) == 32 && ctype_xdigit($guid);
+    }
+    
     function get_merchant_info() {
         // Get merchant info from woocommerce -> settings -> checkout -> goe
         $this->gateway_id = $this->get_option('gateway-id');
         $this->processor_id  = $this->get_option('processor-id');
+        
+        if (!$this->is_valid_GUID($this->gateway_id) || 
+                strlen($this->processor_id) <= 0 || 
+                !ctype_digit($this->processor_id)) {
+            throw new InvalidInputException(ERR_INVALID_ID);
+        }
+        
         $merchant_info = array(
             'merchantKey' => $this->gateway_id,
             'processorId' => $this->processor_id
