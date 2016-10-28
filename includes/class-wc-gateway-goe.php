@@ -32,6 +32,7 @@ define("MSG_AUTO_RENEW", "If order contains or is part of a subscription, your c
 define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
 define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
 define("ERR_CARD_DELETE_INVALID", "Invalid vault ID received for delete-card operation.");
+define("ERR_CARD_SELECT_INVALID", "Invalid vault ID received for select-card operation.");
 define("ERR_CARD_CVC_INVALID", "Invalid card CVC.");
 define("ERR_EXPIRY_INVALID_FORMAT", "Your expiration date is in an incorrect format.");
 define("ERR_TRY_DIFFERENT_CARD", "Please try a different card.<br>");
@@ -74,7 +75,7 @@ define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for
                         . ' for a walkthrough of settling transactions.');
 define("TITLE_AUTH_ONLY", "Authorize Only");
 
-define("DEFAULT_VAULT_KEY_PREFIX", 'WC-');
+define("DEFAULT_VAULT_KEY_PREFIX", 'WC-CUST-');
 define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
         . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
         . '<b>Updating this option will disable your users\' current saved payment methods.</b>');
@@ -84,7 +85,7 @@ define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
                         . 'Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. '
                         . 'Only visible within the Transaction Center.');
 define("TITLE_ORDER_PREFIX", 'Order Number Prefix');
-define("DEFAULT_ORDER_PREFIX", 'WC-');
+define("DEFAULT_ORDER_PREFIX", 'WC-ORDER-');
 
 /**
  * goEmerchant Gateway
@@ -374,10 +375,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $order = wc_get_order($order_id);
         
         $parent_subscription_id = get_post_meta($order->id, 'subscription_id', true); // will be non-null if this is a renewal order
-        $authOnly = $this->get_option('auth-only') == 'yes';
-        $useSavedCard = $_POST[$this->id . "-use-saved-card"] == "yes";
+        $authOnly = $this->get_option('auth-only') === 'yes';
+        $useSavedCard = $_POST[$this->id . "-use-saved-card"] === "yes";
         $saveCard = // save card if desired or if auto-renew subscriptions is on
-                $_POST[$this->id . '-save-card'] == 'on' || 
+                $_POST[$this->id . '-save-card'] === 'on' || 
                 (class_exists('WC_Subscription') && wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes') ||
                 ($parent_subscription_id && $this->get_option('auto-renew') == 'yes');
         
@@ -409,21 +410,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $vaultId = "";
         //process saved or new card based on input
         if ($useSavedCard) {
-            if (!$_POST[$this->id . '-selected-card']) {
-                //$this->add_missing_fields_notice();
-                wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
-                return;
-            }
-            $vaultId = $_POST[$this->id . '-selected-card'];
+            $vaultId = $this->get_selected_card_id();
             $vaultTransactionData = array_merge(
                     $transactionData, $this->get_vault_key(), array('vaultId' => $vaultId));
 
-            $savedCardCvv = $_POST[$this->id . '-card-cvc-saved'];
-
-            if ($savedCardCvv == "") {
-                $this->add_missing_fields_notice();
-                return;
-            }
+            $savedCardCvv = $this->get_card_cvc(true);
             $vaultTransactionData = array_merge(
                     $vaultTransactionData, array('cVV' => $savedCardCvv));
             if ($authOnly) {
@@ -726,27 +717,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             );
     }
     
-    /**
-     * 
-     * @param string $expiry in the format MM/YY
-     */
-    function is_valid_expiry() {
-        if (strlen($_POST[$this->id . '-card-expiry']) == 7) {
-            $expMonth = substr($_POST[$this->id . '-card-expiry'], 0, 2);
-            $expYear = substr($_POST[$this->id . '-card-expiry'], -2);
-            
-            if ($expYear == date("y")) {
-                if ($expMonth <= date("m")) {
-                    return true;
-                }
-            }
-            elseif ($expYear > date("y")) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
     function get_card_number() {
         $cardNumber = sanitize_text_field( $_POST[$this->id . '-card-number'] );
         $cardNumber = str_replace(array('-', ' '), '', $cardNumber);
@@ -797,15 +767,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
     
-    /**
-     * Get array with credit card info to be sent to REST gateway
-     * @return array Array of cc info
-     * Raises exceptions for invalid input.
-     */
-    function get_cc() {
-        
-        $cvc = sanitize_text_field( $_POST[$this->id . '-card-cvc'] );
-        
+    function get_card_cvc($forSavedCard) {
+        $cvc = $forSavedCard ? sanitize_text_field( $_POST[$this->id . '-card-cvc-saved'] ) : sanitize_text_field( $_POST[$this->id . '-card-cvc'] );
         if (
                 !ctype_digit($cvc) ||
                 strlen( $cvc ) < 3 ||
@@ -813,24 +776,27 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 ) {
             throw new InvalidInputException(ERR_CARD_CVC_INVALID);
         }
+        else {
+            return $cvc;
+        }
+    }
+    
+    /**
+     * Get array with credit card info to be sent to REST gateway
+     * @return array Array of cc info
+     * Raises exceptions for invalid input.
+     */
+    function get_cc() {
         $cardNumber = $this->get_card_number();
         $result = array(
             'cardNumber'   => $cardNumber,
-            'cVV'          => $cvc,
+            'cVV'          => $this->get_card_cvc(),
             'cardType'     => $this->getCardType($cardNumber)
         );
         $result = array_merge($result, $this->get_card_expiry());
         return $result;
         
         
-    }
-    
-    function is_cvv_blank() {
-        return $_POST[$this->id . '-card-cvc'] == "";
-    }
-    
-    function is_cvv_saved_blank() {
-        return $_POST[$this->id . '-card-cvc-saved'] == "";
     }
     
     function is_date_expired($month, $year) {
@@ -861,7 +827,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return FALSE;
         }
         $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >' . 
-                '<option value="">Choose saved card</option>';
+                '<option value="DEFAULT">Choose saved card</option>';
         // query for cards using REST
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), $this->get_vault_key(TRUE));
@@ -1107,6 +1073,21 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 <input type="submit" value="Add Card">
 </form>
 BUTTON;
+    }
+    
+    function get_selected_card_id() {
+        $vaultId = sanitize_text_field( $_POST[$this->id . "-selected-card"] );
+        if ($vaultId == 'DEFAULT') {
+            throw new InvalidInputException(PLEASE_CHOOSE_CARD);
+        }
+        elseif (!ctype_digit($vaultId) ||
+                $vaultId <= 0
+                ) {
+            throw new InvalidInputException(ERR_CARD_SELECT_INVALID);
+        }
+        else {
+            return $vaultId;
+        }
     }
     
     function get_delete_card_id() {
