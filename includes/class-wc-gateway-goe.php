@@ -1,17 +1,12 @@
 <?php
-include_once 'debug.php';
-require_once 'class-invalid-input-exception.php';
+require_once 'invalidinputexception_goe.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
-
-//WooCommerce id for this gateway
-define("WC_GATEWAY_ID", "goe");
-define("WC_GATEWAY_TITLE", "goEmerchant");
 
 /**
  * Container for URLs used.
  */
-class URLPaths
+class URLPaths_goe
 {
 	const URL_API = "https://secure.goemerchant.com/secure/RestGW/Gateway/Transaction/";
 	const URL_API_VALIDATION = 'https://secure-v.goemerchant.com/secure/RestGW/Gateway/Transaction/';
@@ -20,72 +15,68 @@ class URLPaths
         const URL_SUBMIT_CC_BATCH_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch";
 }
 
-define("DESC_METHOD", 'Process transactions using the goEmerchant gateway. '
-                . 'Click <a href=' . esc_url(URLPaths::URL_TRANS_CENTER_SUPPORT) . '>here</a> '
-                . 'to visit our support page for details on viewing transaction history, issuing refunds, and more.');
-
-// define constants for display
-define("MSG_AUTH_APPROVED", "Your payment has been approved and is being processed.");
-define("MSG_CARD_ALREADY_EXISTS", "Your payment method was not saved because a card with that number already exists.");
-define("MSG_PAYMENT_METHOD_SAVED", "Payment method saved.");
-define("MSG_AUTO_RENEW", "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.");
-define("ERR_CARD_NUMBER_INVALID", "Credit card number is invalid.");
-define("ERR_CARD_EXPIRY_INVALID", "Invalid card expiration date.");
-define("ERR_CARD_DELETE_INVALID", "Invalid vault ID received for delete-card operation.");
-define("ERR_CARD_SELECT_INVALID", "Invalid vault ID received for select-card operation.");
-define("ERR_CARD_CVC_INVALID", "Invalid card CVC.");
-define("ERR_EXPIRY_INVALID_FORMAT", "Your expiration date is in an incorrect format.");
-define("ERR_TRY_DIFFERENT_CARD", "Please try a different card.<br>");
-define("ERR_BAD_CARD", "Merchant does not accept this card.<br>");
-define("ERR_CARD_DECLINED", "Authorization declined. Please try a different card or contact your issuing bank for more information.<br>");
-define("ERR_MISSING_FIELDS", "Some required fields (*) are invalid or missing. Please check below and try again.");
-define("ERR_PROBLEM_PROCESSING", "Please try again later.");
-define("ERR_PLEASE_CORRECT", "Could not process your order. Please correct the following errors:");
-define("ERR_PARTIAL_VOID", "Partial void not allowed. Please wait for transaction to settle, or enter full amount.");
-define("ERR_CHANGE_CARD", "There was an error changing your payment method. If using a new card, ensure that a card with the same account number does not already exist in your account.");
-define("PLEASE_CHOOSE_CARD", "Please choose a saved card from the menu below.");
-define("PLEASE_ENTER_ID", "Please enter a valid gateway ID and processor ID.");
-define("ERR_INVALID_ID", "This merchant account is not active. Please try again later.");
-
-define("TITLE_SANDBOX", "Enable Sandbox/Validation");
-define("LABEL_SANDBOX", "Configure this plugin to process to a validation environment (secure-v.goemerchant.com).");
-define("TITLE_ENABLED", 'Enable/Disable');
-define("LABEL_ENABLED", 'Enable goEmerchant plugin');
-
-define("TITLE_AUTO_RENEW", 'Auto-Renew Subscriptions');
-define("LABEL_AUTO_RENEW", 'Automatically charge a customer with a subscription when their renewal payment is due.');
-
-define("TITLE_PAYMENT_METHOD_TITLE", 'Title');
-define("DESC_PAYMENT_METHOD_TITLE", 'The name of this payment method that your customers will see.');
-define("DEFAULT_PAYMENT_METHOD_TITLE", 'Credit Card');
-
-define("TITLE_INSTRUCTIONS", "Instructions");
-define("DESC_INSTRUCTIONS", 'Instructions that will be added to the thank you page and emails.');
-define("DEFAULT_INSTRUCTIONS", 'Thank you for your purchase!');
-
-define("TITLE_GATEWAY_ID", "Gateway ID (Merchant Key)");
-define("DESC_GATEWAY_ID", 'You can find your gateway and processor ID by logging into the transaction center and following the steps listed '
-                        . '<a href=' . esc_url(URLPaths::URL_GATEWAY_OPTIONS_SUPPORT) . '>here</a>.');
-
-define('TITLE_PROCESSOR_ID', 'Processor ID');
-
-define("LABEL_AUTH_ONLY", 'If enabled, you must manually submit transactions for settlement in'
-                        . ' your Transaction Center in order to capture the funds.'
-                        . ' Visit our <a href=' . esc_url(URLPaths::URL_SUBMIT_CC_BATCH_SUPPORT) . '>support page</a>'
-                        . ' for a walkthrough of settling transactions.');
-define("TITLE_AUTH_ONLY", "Authorize Only");
-
-define("DEFAULT_VAULT_KEY_PREFIX", 'WC-CUST-');
-define("DESC_VAULT_KEY_PREFIX", 'A vault key is created when a user saves a payment method to your site for future use. '
-        . 'This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. '
-        . '<b>Updating this option will disable your users\' current saved payment methods.</b>');
-define("TITLE_VAULT_KEY_PREFIX", 'Vault Key Prefix');
-
-define("DESC_ORDER_PREFIX", 'Text to prepend to the WooCommerce order number. '
-                        . 'Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. '
-                        . 'Only visible within the Transaction Center.');
-define("TITLE_ORDER_PREFIX", 'Order Number Prefix');
-define("DEFAULT_ORDER_PREFIX", 'WC-ORDER-');
+/**
+ * Container for front-end messages.
+ */
+class Goe_messages
+{
+    const WC_GATEWAY_ID = "goe";
+    const WC_GATEWAY_TITLE = "goEmerchant";
+    
+    const MSG_AUTH_APPROVED = "Your payment has been approved and is being processed.";
+    const DESC_METHOD = "Process transactions using the goEmerchant gateway. Click <a href='http://support.goemerchant.com/transaction-center.aspx'>here</a> to visit our support page for details on viewing transaction history, issuing refunds, and more.";
+    const MSG_CARD_ALREADY_EXISTS = "Your payment method was not saved because a card with that number already exists.";
+    const MSG_PAYMENT_METHOD_SAVED = "Payment method saved.";
+    const MSG_AUTO_RENEW = "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.";
+    const ERR_CARD_NUMBER_INVALID = "Credit card number is invalid.";
+    const ERR_CARD_EXPIRY_INVALID = "Invalid card expiration date.";
+    const ERR_CARD_DELETE_INVALID = "Invalid vault ID received for delete-card operation.";
+    const ERR_CARD_SELECT_INVALID = "Invalid vault ID received for select-card operation.";
+    const ERR_CARD_CVC_INVALID = "Invalid card CVC.";
+    const ERR_EXPIRY_INVALID_FORMAT = "Your expiration date is in an incorrect format.";
+    const ERR_TRY_DIFFERENT_CARD = "Please try a different card.<br>";
+    const ERR_BAD_CARD = "Merchant does not accept this card.<br>";
+    const ERR_CARD_DECLINED = "Authorization declined. Please try a different card or contact your issuing bank for more information.<br>";
+    const ERR_MISSING_FIELDS = "Some required fields (*) are invalid or missing. Please check below and try again.";
+    const ERR_PROBLEM_PROCESSING = "Please try again later.";
+    const ERR_PLEASE_CORRECT = "Could not process your order. Please correct the following errors:";
+    const ERR_PARTIAL_VOID = "Partial void not allowed. Please wait for transaction to settle, or enter full amount.";
+    const PLEASE_CHOOSE_CARD = "There was an error changing your payment method. If using a new card, ensure that a card with the same account number does not already exist in your account.";
+    const PLEASE_ENTER_ID = "Please enter a valid gateway ID and processor ID.";
+    const ERR_INVALID_ID = "This merchant account is not active. Please try again later.";
+    
+    const TITLE_SANDBOX = "Enable Sandbox/Validation";
+    const LABEL_SANDBOX = "Configure this plugin to process to a validation environment (secure-v.goemerchant.com).";
+    const TITLE_ENABLED = "Enable/Disable";
+    const LABEL_ENABLED = 'Enable goEmerchant plugin';
+    
+    const TITLE_AUTO_RENEW = 'Auto-Renew Subscriptions';
+    const LABEL_AUTO_RENEW = 'Automatically charge a customer with a subscription when their renewal payment is due.';
+    const TITLE_PAYMENT_METHOD_TITLE = 'Payment Method Title';
+    const DESC_PAYMENT_METHOD_TITLE = 'The name of this payment method that your customers will see.';
+    const DEFAULT_PAYMENT_METHOD_TITLE = 'Credit Card';
+    
+    const TITLE_INSTRUCTIONS = "Instructions";
+    const DESC_INSTRUCTIONS = 'Instructions that will be added to the thank you page and emails.';
+    const DEFAULT_INSTRUCTIONS = 'Thank you for your purchase!';
+    
+    const TITLE_GATEWAY_ID = "Gateway ID (Merchant Key)";
+    const DESC_GATEWAY_ID = "You can find your gateway and processor ID by logging into the transaction center and following the steps listed <a href='http://support.goemerchant.com/transaction-center.aspx?article=gateway-options'>here</a>.";
+    
+    const TITLE_PROCESSOR_ID = 'Processor ID';
+    
+    const LABEL_AUTH_ONLY = "If enabled, you must manually submit transactions for settlement in your Transaction Center in order to capture the funds. Visit our <a href='http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch'>support page</a> for a walkthrough of settling transactions.";
+    const TITLE_AUTH_ONLY = "Authorize Only";
+    
+    const DEFAULT_VAULT_KEY_PREFIX = 'WC-CUST-';
+    const DESC_VAULT_KEY_PREFIX = "A vault key is created when a user saves a payment method to your site for future use. This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. <b>Updating this option will disable your users' current saved payment methods.</b>";
+    const TITLE_VAULT_KEY_PREFIX = 'Vault Key Prefix';
+    
+    const DESC_ORDER_PREFIX = "Text to prepend to the WooCommerce order number. Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. Only visible within the Transaction Center.";
+    const TITLE_ORDER_PREFIX = "Order Number Prefix";
+    const DEFAULT_ORDER_PREFIX = 'WC-ORDER-';
+    
+}
 
 /**
  * goEmerchant Gateway
@@ -95,14 +86,14 @@ define("DEFAULT_ORDER_PREFIX", 'WC-ORDER-');
  */
 class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
-    static $apiURL = URLPaths::URL_API; //Base URL for REST API requests
+    static $apiURL = URLPaths_goe::URL_API; //Base URL for REST API requests
     
     /**
      * Initialize the gateway
      */
     function __construct() {
         
-        $this->id                 = WC_GATEWAY_ID;
+        $this->id                 = Goe_messages::WC_GATEWAY_ID;
         $this->icon               = false;
         $this->has_fields         = true; // checkout fields
         $this->supports           = array( 
@@ -118,19 +109,19 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($this->get_option( 'auto-renew' ) == 'yes') {
             $this->supports[] = 'subscription_payment_method_change_customer';
         }
-        $this->method_title       = __( WC_GATEWAY_TITLE, 'wc-goe' );
+        $this->method_title       = __(Goe_messages::WC_GATEWAY_TITLE, 'wc-goe' );
         $this->method_description =
-                __( DESC_METHOD, 'wc-goe' );
+                __(Goe_messages::DESC_METHOD, 'wc-goe' );
 
         $this->init_form_fields();
         $this->init_settings();
         $this->currentUserID = wp_get_current_user()->ID;
 
         $title                    = $this->get_option( 'payment-method-title' );
-        $this->title              = empty( $title ) ? __( WC_GATEWAY_TITLE, 'wc-goe' ) : $title;
+        $this->title              = empty( $title ) ? __(Goe_messages::WC_GATEWAY_TITLE, 'wc-goe' ) : $title;
         $this->description        = $this->get_option( 'description' );
         $this->instructions       = $this->get_option( 'instructions', $this->description );
-        self::$apiURL             = $this->get_option( 'sandbox' ) == 'yes' ? URLPaths::URL_API_VALIDATION : URLPaths::URL_API;
+        self::$apiURL             = $this->get_option( 'sandbox' ) == 'yes' ? URLPaths_goe::URL_API_VALIDATION : URLPaths_goe::URL_API;
 
         //register hooks
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
@@ -157,62 +148,62 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     public function init_form_fields() {
         $this->form_fields = array(
             'enabled' => array(
-                'title' => __(TITLE_ENABLED, 'wc-goe'),
+                'title' => __(Goe_messages::TITLE_ENABLED, 'wc-goe'),
                 'type' => 'checkbox',
-                'label' => __(LABEL_ENABLED, 'wc-goe'),
+                'label' => __(Goe_messages::LABEL_ENABLED, 'wc-goe'),
                 'default' => 'no'
             ),
             'sandbox' => array(
-                'title' => __(TITLE_SANDBOX, 'wc-goe'),
+                'title' => __(Goe_messages::TITLE_SANDBOX, 'wc-goe'),
                 'type' => 'checkbox',
-                'label' => __(LABEL_SANDBOX, 'wc-goe'),
+                'label' => __(Goe_messages::LABEL_SANDBOX, 'wc-goe'),
                 'default' => 'no'
         ));
         if (class_exists("WC_Subscription")) {
             $this->form_fields['auto-renew'] = array(
-                'title' => __(TITLE_AUTO_RENEW, 'wc-goe'),
+                'title' => __(Goe_messages::TITLE_AUTO_RENEW, 'wc-goe'),
                 'type' => 'checkbox',
-                'label' => __(LABEL_AUTO_RENEW, 'wc-goe'),
+                'label' => __(Goe_messages::LABEL_AUTO_RENEW, 'wc-goe'),
                 'default' => 'yes');
         }
         $this->form_fields['payment-method-title'] = array(
-            'title' => __(TITLE_PAYMENT_METHOD_TITLE, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_PAYMENT_METHOD_TITLE, 'wc-goe'),
             'type' => 'text',
-            'description' => __(DESC_PAYMENT_METHOD_TITLE, 'wc-goe'),
-            'default' => __(DEFAULT_PAYMENT_METHOD_TITLE, 'wc-goe'),
+            'description' => __(Goe_messages::DESC_PAYMENT_METHOD_TITLE, 'wc-goe'),
+            'default' => __(Goe_messages::DEFAULT_PAYMENT_METHOD_TITLE, 'wc-goe'),
         );
         $this->form_fields['instructions'] = array(
-            'title' => __(TITLE_INSTRUCTIONS, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_INSTRUCTIONS, 'wc-goe'),
             'type' => 'textarea',
-            'description' => __(DESC_INSTRUCTIONS, 'wc-goe'),
-            'default' => __(DEFAULT_INSTRUCTIONS, 'wc-goe'),
+            'description' => __(Goe_messages::DESC_INSTRUCTIONS, 'wc-goe'),
+            'default' => __(Goe_messages::DEFAULT_INSTRUCTIONS, 'wc-goe'),
         );
         $this->form_fields['gateway-id'] = array(
-            'title' => __(TITLE_GATEWAY_ID, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_GATEWAY_ID, 'wc-goe'),
             'type' => 'text',
-            'description' => DESC_GATEWAY_ID
+            'description' => Goe_messages::DESC_GATEWAY_ID
         );
         $this->form_fields['processor-id'] = array(
-            'title' => __(TITLE_PROCESSOR_ID, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_PROCESSOR_ID, 'wc-goe'),
             'type' => 'text'
         );
         $this->form_fields['auth-only'] = array(
-            'title' => __(TITLE_AUTH_ONLY, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_AUTH_ONLY, 'wc-goe'),
             'type' => 'checkbox',
-            'label' => __(LABEL_AUTH_ONLY, 'wc-goe'),
+            'label' => __(Goe_messages::LABEL_AUTH_ONLY, 'wc-goe'),
             'default' => 'no'
         );
         $this->form_fields['vault-key-prefix'] = array(
-            'title' => __(TITLE_VAULT_KEY_PREFIX, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_VAULT_KEY_PREFIX, 'wc-goe'),
             'type' => 'text',
-            'description' => __(DESC_VAULT_KEY_PREFIX, 'wc-goe'),
-            'default' => DEFAULT_VAULT_KEY_PREFIX
+            'description' => __(Goe_messages::DESC_VAULT_KEY_PREFIX, 'wc-goe'),
+            'default' => Goe_messages::DEFAULT_VAULT_KEY_PREFIX
         );
         $this->form_fields['order-prefix'] = array(
-            'title' => __(TITLE_ORDER_PREFIX, 'wc-goe'),
+            'title' => __(Goe_messages::TITLE_ORDER_PREFIX, 'wc-goe'),
             'type' => 'text',
-            'description' => __(DESC_ORDER_PREFIX, 'wc-goe'),
-            'default' => DEFAULT_ORDER_PREFIX
+            'description' => __(Goe_messages::DESC_ORDER_PREFIX, 'wc-goe'),
+            'default' => Goe_messages::DEFAULT_ORDER_PREFIX
         );
     }
 
@@ -224,7 +215,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (!$print) {return;}
         
         $class = 'notice notice-error';
-        $message = __(PLEASE_ENTER_ID, 'wc-goe');
+        $message = __(Goe_messages::PLEASE_ENTER_ID, 'wc-goe');
 
         printf('<div class="%1$s"><p>%2$s</p></div>', $class, $message);
         return;
@@ -317,11 +308,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
     function change_subscription_payment_method($useSavedCard, $subscription) {
         if ($useSavedCard) {
-            if (!$_POST[$this->id . '-selected-card']) {
-                wc_add_notice(PLEASE_CHOOSE_CARD, 'error');
-                return;
-            }
-            $newVaultId = $_POST[$this->id . '-selected-card'];
+            $newVaultId = $this->get_selected_card_id();
             update_post_meta(
                     $subscription->id, 'vault_id', $newVaultId); // update subscription with chosen card
             return array(
@@ -359,6 +346,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         return;
     }
+    
+    
 
     /**
      * Process the gateway integration
@@ -380,7 +369,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $saveCard = // save card if desired or if auto-renew subscriptions is on
                 $_POST[$this->id . '-save-card'] === 'on' || 
                 (class_exists('WC_Subscription') && wcs_order_contains_subscription($order) && $this->get_option('auto-renew') == 'yes') ||
-                ($parent_subscription_id && $this->get_option('auto-renew') == 'yes');
+                ($parent_subscription_id && $this->get_option('auto-renew') === 'yes');
         
         
         // if amt is 0, user is just changing the payment method for their subscription
@@ -445,8 +434,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $refNumber = $rgw->Result["data"]["referenceNumber"]; //handles order stock, marks status as 'processing'
             // pass in refNum as WC transaction_id 
             $order->payment_complete($refNumber);
-            wc_add_notice(MSG_AUTH_APPROVED, 'success');
-            $order->add_order_note(MSG_AUTH_APPROVED);
+            wc_add_notice(Goe_messages::MSG_AUTH_APPROVED, 'success');
+            $order->add_order_note(Goe_messages::MSG_AUTH_APPROVED);
 
             if ($saveCard && !$useSavedCard) {
                 $vaultData = array_merge($vaultData, $this->get_vault_key());
@@ -474,7 +463,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'redirect' => $this->get_return_url($order)
             );
         } else { // we shouldn't ever make it this far, but just in case, bail out
-            wc_add_notice(ERR_PROBLEM_PROCESSING, "error");
+            wc_add_notice(Goe_messages::ERR_PROBLEM_PROCESSING, "error");
             return;
         }
     }
@@ -520,7 +509,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         } else {
             $refNumber = $rgw->Result["data"]["referenceNumber"];
             $order->payment_complete($refNumber);
-            $order->add_order_note(MSG_AUTH_APPROVED);
+            $order->add_order_note(Goe_messages::MSG_AUTH_APPROVED);
             if (class_exists('WC_Subscription')) {
                 WC_Subscriptions_Manager::process_subscription_payments_on_order($order);
             }
@@ -546,7 +535,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $rgw->createCredit($refundData);
         if ($this->get_error_string($rgw)) { // credit failed, try void
             if ($amount != $order->get_total()) { // disallow partial voids
-               return new WP_Error( 'partialVoidError', ERR_PARTIAL_VOID );
+               return new WP_Error( 'partialVoidError', Goe_messages::ERR_PARTIAL_VOID );
             }
             else {
                 $rgw->performVoid($refundData);
@@ -579,11 +568,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     function add_missing_fields_notice($printNotice = false) {
         if ($printNotice) {
             wc_print_notice(__('Payment error: ', 'woothemes') .
-                ERR_MISSING_FIELDS, 'error');
+                    Goe_messages::ERR_MISSING_FIELDS, 'error');
         }
         else {
             wc_add_notice(__('Payment error: ', 'woothemes') .
-                ERR_MISSING_FIELDS, 'error');
+                    Goe_messages::ERR_MISSING_FIELDS, 'error');
         }
         return;
     }
@@ -605,12 +594,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             foreach ($result["errorMessages"] as $index => $err) {
                 if ($err == "Credit card account already exists") {
                     if (is_account_page()) {
-                        wc_print_notice(MSG_CARD_ALREADY_EXISTS, 'notice');
+                        wc_print_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'notice');
                     } elseif($isPaymentChange) {
-                        wc_add_notice(MSG_CARD_ALREADY_EXISTS, 'error');
+                        wc_add_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'error');
                     }
                     else {
-                        wc_add_notice(MSG_CARD_ALREADY_EXISTS, 'notice');
+                        wc_add_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'notice');
                     }
                 } else {
                     if (is_account_page()) {
@@ -632,9 +621,9 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         } else {
             if (is_account_page()) {
-                wc_print_notice(MSG_PAYMENT_METHOD_SAVED, 'success');
+                wc_print_notice(Goe_messages::MSG_PAYMENT_METHOD_SAVED, 'success');
             } else {
-                wc_add_notice(MSG_PAYMENT_METHOD_SAVED, 'success');
+                wc_add_notice(Goe_messages::MSG_PAYMENT_METHOD_SAVED, 'success');
             }
             return $result["data"]["id"];
         }
@@ -688,7 +677,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (!$this->is_valid_GUID($this->gateway_id) || 
                 strlen($this->processor_id) <= 0 || 
                 !ctype_digit($this->processor_id)) {
-            throw new InvalidInputException(ERR_INVALID_ID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_INVALID_ID);
         }
         
         $merchant_info = array(
@@ -726,7 +715,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 strlen( $cardNumber ) > 16  ||
                 !$this->mod10Check($cardNumber)
             ) {
-            throw new InvalidInputException(ERR_CARD_NUMBER_INVALID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_CARD_NUMBER_INVALID);
         }
         else {
             return $cardNumber;
@@ -736,7 +725,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     /**
      * 
      * @return array Array containing the keys 'cardExpMonth' and 'cardExpYear'
-     * @throws InvalidInputException
+     * @throws InvalidInputException_goe
      */
     function get_card_expiry() {
         $cardExpiry = sanitize_text_field( $_POST[$this->id . '-card-expiry'] );
@@ -745,7 +734,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $cardExpYear  = substr($cardExpiry, -2);
         }
         else {
-            throw new InvalidInputException(ERR_EXPIRY_INVALID_FORMAT);
+            throw new InvalidInputException_goe(Goe_messages::ERR_EXPIRY_INVALID_FORMAT);
         }
         
         if (
@@ -757,7 +746,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 $cardExpYear  > 99          ||
                 $this->is_date_expired($cardExpMonth, $cardExpYear)
                 ) {
-            throw new InvalidInputException(ERR_CARD_EXPIRY_INVALID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_CARD_EXPIRY_INVALID);
         }
         else {
             return array (
@@ -774,7 +763,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 strlen( $cvc ) < 3 ||
                 strlen( $cvc ) > 4
                 ) {
-            throw new InvalidInputException(ERR_CARD_CVC_INVALID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_CARD_CVC_INVALID);
         }
         else {
             return $cvc;
@@ -932,7 +921,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         ' style="width:100px" /></p>' : "";
             if (class_exists("WC_Subscription")) {
                 $sub_msg = $this->get_option('auto-renew') == 'yes' ?
-                        MSG_AUTO_RENEW :
+                        Goe_messages::MSG_AUTO_RENEW :
                         "";
             }
 
@@ -1000,7 +989,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     case 'Over Credit Flr' :
                     case 'Request Denied' :
                     case 'Invalid Card' :
-                    case 'CVD Data Error' : $errorString .= ERR_CARD_DECLINED; break;
+                    case 'CVD Data Error' : $errorString .= Goe_messages::ERR_CARD_DECLINED; break;
                     case 'CVC2/CID ERROR' :
                         $errorString .= "Invalid CVC.<br>"; break;
                     case 'Card Not Allowed' :
@@ -1008,8 +997,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     case 'DC Not Allowed' :
                     case 'CB Not Allowed' :
                     case 'AX Not Allowed' :
-                        $errorString .= ERR_BAD_CARD;
-                        $errorString .= ERR_TRY_DIFFERENT_CARD; break;
+                        $errorString .= Goe_messages::ERR_BAD_CARD;
+                        $errorString .= Goe_messages::ERR_TRY_DIFFERENT_CARD; break;
                     default: // Hard error (Payment server unavailable, etc...)
                         $errorString .= "RESPONSE: " . $err;
                         break 2;
@@ -1020,7 +1009,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         //check for validation errors
         if ($result['validationHasFailed']) {
-            $errorString .= ERR_PLEASE_CORRECT . "<br>";
+            $errorString .= Goe_messages::ERR_PLEASE_CORRECT . "<br>";
             foreach ($result["validationFailures"] as $index => $vError) {
                 $errorString .= $vError['message'] . "<br>";
             }
@@ -1037,7 +1026,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     public function on_my_account_load() {
         
         $pageID = get_option( 'woocommerce_myaccount_page_id' );
-        $my_account_url = get_permalink( $pageID );
+        $my_account_url = esc_url( get_permalink( $pageID ) );
         
         if (!is_user_logged_in()) {
             return;
@@ -1058,7 +1047,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             } elseif (isset($_POST[$this->id . "-delete-card"])) {
                 $this->delete_cc_from_vault($this->get_delete_card_id());
             }
-        } catch (InvalidInputException $exception) {
+        } catch (InvalidInputException_goe $exception) {
             wc_print_notice($exception, 'error');
         }
 
@@ -1069,21 +1058,18 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $this->form();
 
-        echo <<<BUTTON
-                <input type="submit" value="Add Card">
-</form>
-BUTTON;
+        echo '<input type="submit" value="Add Card"></form>';
     }
     
     function get_selected_card_id() {
         $vaultId = sanitize_text_field( $_POST[$this->id . "-selected-card"] );
         if ($vaultId == 'DEFAULT') {
-            throw new InvalidInputException(PLEASE_CHOOSE_CARD);
+            throw new InvalidInputException_goe(Goe_messages::PLEASE_CHOOSE_CARD);
         }
         elseif (!ctype_digit($vaultId) ||
                 $vaultId <= 0
                 ) {
-            throw new InvalidInputException(ERR_CARD_SELECT_INVALID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_CARD_SELECT_INVALID);
         }
         else {
             return $vaultId;
@@ -1096,7 +1082,7 @@ BUTTON;
             return $vaultId;
         }
         else {
-            throw new InvalidInputException(ERR_CARD_DELETE_INVALID);
+            throw new InvalidInputException_goe(Goe_messages::ERR_CARD_DELETE_INVALID);
         }
     }
     
