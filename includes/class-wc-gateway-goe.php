@@ -893,8 +893,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         </p>';
         
         $existingCardChoice = (
-                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id"><h2>Use Existing Card</h2></label><br>' : '';
-        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id"><h2>Use New Card</h2></label>' : '';
+                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="5"><strong>Use Existing Card</strong></font></label><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="5"><strong>Use New Card</strong></font></label>' : '';
         
         $default_fields = array(
             'newcard-radio-button2' => $newCardChoice,

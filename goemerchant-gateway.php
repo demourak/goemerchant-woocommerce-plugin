@@ -10,9 +10,6 @@ Author URI: http://goemerchant.com
 
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
-define( 'GATEWAY_CLASS_PATH', '/includes/class-wc-gateway-goe.php');
-
-define('WC_GATEWAY_NAME', 'WC_Gateway_goe');
 
 /**
  * WooCommerce - goEmerchant integration
@@ -21,8 +18,8 @@ define('WC_GATEWAY_NAME', 'WC_Gateway_goe');
  */
 class Goemerchant_Plugin {
 
-    private $db_version = '1.0';
-    private $version_key = '_goe_version';
+    private $gatewayClassPath = '/includes/class-wc-gateway-goe.php';
+    private $gatewayName = 'WC_Gateway_goe';
 
     /**
      * Start plugin
@@ -44,7 +41,7 @@ class Goemerchant_Plugin {
             return;
         }
 
-        require_once dirname( __FILE__ ) . GATEWAY_CLASS_PATH;
+        require_once dirname( __FILE__ ) . $this->gatewayClassPath;
     }
 
     /**
@@ -55,7 +52,7 @@ class Goemerchant_Plugin {
      * @return array
      */
     function register_gateway( $gateways ) {
-        $gateways[] = WC_GATEWAY_NAME;
+        $gateways[] = $this->gatewayName;
 
         return $gateways;
     }
