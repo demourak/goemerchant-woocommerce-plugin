@@ -815,7 +815,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (!is_user_logged_in() || is_account_page()) {
             return FALSE;
         }
-        $html = '<select name="' . esc_attr( $this->id ) . '-selected-card" >' . 
+        $html = '<br><select name="' . esc_attr( $this->id ) . '-selected-card" >' . 
                 '<option value="DEFAULT">Choose saved card</option>';
         // query for cards using REST
         $rgw = new RestGateway();
@@ -893,8 +893,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         </p>';
         
         $existingCardChoice = (
-                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="5"><strong>Use Existing Card</strong></font></label><br>' : '';
-        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="5"><strong>Use New Card</strong></font></label>' : '';
+                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><button type="button"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="4"><strong>Use Existing Card</strong></font></label></button><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><button type="button"><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="4"><strong>Use New Card</strong></font></label></button>' : '';
         
         $default_fields = array(
             'newcard-radio-button2' => $newCardChoice,
@@ -929,7 +929,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                     $default_fields,
                     '
 				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
-                                    <label for="' . esc_attr($this->id) . '-save-card">' . __("Save card to My Account? {$sub_msg}", 'woocommerce-cardpay-' . $this->id) . ' </label>
+                                    <label for="' . esc_attr($this->id) . '-save-card" style="vertical-align: middle">' . __("Save card to My Account? {$sub_msg}", 'woocommerce-cardpay-' . $this->id) . ' </label>
 			</p>',
                     $existingCardChoice,
                     $this->get_existing_cards_menu(),
@@ -972,13 +972,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($result["isError"] == TRUE) {
             $errorString = "There was an error processing your request.<br>";
             foreach ($result["errorMessages"] as $index => $err) {
-                switch ($err) {
-                    case 'Pick up card':
-                    case 'PICK UP CARD':
+                switch (strtolower($err)) {
+                    case 'pick up card':
                     case 'Declined':
                     case 'Auth Declined':
                     case 'Do Not Honor':
-                    case 'DO NOT HONOR':
                     case 'Call Voice Oper':
                     case 'Hold - Call' :
                     case 'Invalid Card No' :
