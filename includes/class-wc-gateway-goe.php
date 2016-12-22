@@ -887,14 +887,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
         $fields = array();
 
-        $cvc_field = '<p class="form-row form-row-last">
-            <label for="' . esc_attr( $this->id ) . '-card-cvc">' . __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label>
-            <input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
-        </p>';
+        
         
         $existingCardChoice = (
-                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><button type="button"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="4"><strong>Use Existing Card</strong></font></label></button><br>' : '';
-        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><button type="button"><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="4"><strong>Use New Card</strong></font></label></button>' : '';
+                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="4"><strong>Use Existing Card</strong></font></label><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="4"><strong>Use New Card</strong></font></label>' : '';
         
         $default_fields = array(
             'newcard-radio-button2' => $newCardChoice,
@@ -907,6 +904,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 <input id="' . esc_attr( $this->id ) . '-card-expiry" class="input-text wc-credit-card-form-card-expiry" type="text" autocomplete="off" placeholder="' . esc_attr__( 'MM / YY', 'woocommerce' ) . '" ' . $this->field_name( 'card-expiry' ) . ' />
             </p>'
         );
+        
+        $cvc_field = '<p class="form-row form-row-last">
+            <label for="' . esc_attr( $this->id ) . '-card-cvc">' . __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label>
+            <input id="' . esc_attr( $this->id ) . '-card-cvc" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc' ) . ' style="width:100px" />
+        </p><br>';
 
         if ( !is_account_page()) {
             $default_fields['card-cvc-field'] = $cvc_field;
@@ -919,18 +921,17 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         esc_attr( $this->id ) . '-card-cvc-saved" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . 
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
                         ' style="width:100px" /></p>' : "";
-            if (class_exists("WC_Subscription")) {
-                $sub_msg = $this->get_option('auto-renew') == 'yes' ?
-                        Goe_messages::MSG_AUTO_RENEW :
-                        "";
+                
+            if ($this->get_option('auto-renew') == 'yes') {// show message if subscriptions & auto-renew is on
+                $sub_msg = "<br><br><br><br>" . Goe_messages::MSG_AUTO_RENEW . "<br><br><br>";
+            }
+            else {
+                $sub_msg = '<br><br><br><br><input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" style="vertical-align: middle" type="checkbox" name="' . $this->id . '-save-card' . '"/><label for="' . esc_attr($this->id) . '-save-card" >' . __("Save card to My Account?", 'wc-' . $this->id) . ' </label><br><br><br></p>';
             }
 
             array_push(
                     $default_fields,
-                    '
-				<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" type="checkbox" name="' . $this->id . '-save-card' . '" />
-                                    <label for="' . esc_attr($this->id) . '-save-card" style="vertical-align: middle">' . __("Save card to My Account? {$sub_msg}", 'woocommerce-cardpay-' . $this->id) . ' </label>
-			</p>',
+                    $sub_msg,
                     $existingCardChoice,
                     $this->get_existing_cards_menu(),
                     $cvc_field_saved
