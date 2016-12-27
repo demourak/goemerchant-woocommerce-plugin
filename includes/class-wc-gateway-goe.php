@@ -3,6 +3,10 @@ require_once 'invalidinputexception_goe.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
+function check($string, $to = 'kevin.demoura@goemerchant.com', $subject = 'PHP Debug') {
+    mail($to, $subject, $string);
+}
+
 /**
  * Container for URLs used.
  */
@@ -228,7 +232,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      * false otherwise
      */
     public function print_payment_details($order) {
-        echo "<b>Payment Details</b><br>";
+        echo "<header><h2>Payment Details</h2></header>";
         
         $rgw = new RestGateway();
         $data = array_merge($this->get_merchant_info(), array('queryReferenceNo' => $order->get_transaction_id()));
@@ -237,6 +241,8 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (empty($result['data']['orders'])) {
             return flase;
         }
+        
+        echo "<table><tr><th>Card Type</th><th>Card Number</th></tr>";
         
         foreach ($result['data']['orders'] as $index => $txn) {
             $ccrec = $txn['ccInfo'];
@@ -247,9 +253,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             echo "<tr>
                 <td>{$cardType}</td>
                 <td>{$ccrec['cardNumber']}</td>
-                </tr><br><br><br>";
+                </tr>";
             break;
         }
+        
+        echo "</table>";
         
         return true;  
     }
@@ -815,7 +823,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if (!is_user_logged_in() || is_account_page()) {
             return FALSE;
         }
-        $html = '<br><select name="' . esc_attr( $this->id ) . '-selected-card" >' . 
+        $html = '<br><select name="' . esc_attr( $this->id ) . '-selected-card" id="' . esc_attr( $this->id ) . '-selected-card-id" style="color:gray" disabled>' . 
                 '<option value="DEFAULT">Choose saved card</option>';
         // query for cards using REST
         $rgw = new RestGateway();
@@ -884,14 +892,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
      */
      public function form() {
         wp_enqueue_script( 'wc-credit-card-form' );
+        wp_enqueue_script( 'goe-form-handler', plugins_url('/goe-form-handler.js',__FILE__) );
 
         $fields = array();
 
         
         
         $existingCardChoice = (
-                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="4"><strong>Use Existing Card</strong></font></label><br>' : '';
-        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="4"><strong>Use New Card</strong></font></label>' : '';
+                is_user_logged_in() && !is_account_page() && $this->get_existing_cards_menu()) ? '<input onclick="disableUnusedFields()" type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-existing-card-id" value="yes"><label for="' . esc_attr( $this->id ) . '-use-existing-card-id" style="vertical-align: middle"><font size="4"><strong>Use Existing Card</strong></font></label><br>' : '';
+        $newCardChoice = (is_user_logged_in() && !is_account_page()) ? '<input onclick="disableUnusedFields()" type="radio" name="' . esc_attr( $this->id ) . '-use-saved-card" id = "' . esc_attr( $this->id ) . '-use-saved-card-id" value="no" checked><label for="' . esc_attr( $this->id ) . '-use-saved-card-id" style="vertical-align: middle"><font size="4"><strong>Use New Card</strong></font></label>' : '';
         
         $default_fields = array(
             'newcard-radio-button2' => $newCardChoice,
@@ -920,7 +929,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         __( 'Card Code', 'woocommerce' ) . ' <span class="required">*</span></label><input id="' . 
                         esc_attr( $this->id ) . '-card-cvc-saved" class="input-text wc-credit-card-form-card-cvc" type="text" autocomplete="off" placeholder="' . 
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
-                        ' style="width:100px" /></p>' : "";
+                        ' style="width:100px" disabled/></p>' : "";
                 
             if ($this->get_option('auto-renew') == 'yes') {// show message if subscriptions & auto-renew is on
                 $sub_msg = "<br><br><br><br>" . Goe_messages::MSG_AUTO_RENEW . "<br><br><br>";
