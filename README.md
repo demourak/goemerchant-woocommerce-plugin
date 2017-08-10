@@ -3,10 +3,11 @@ Contributors: demourak
 Tags: goemerchant, gateway, woocommerce, plugin, processing, payment, credit card, merchant, checkout
 Requires at least: 4.5.3
 Tested up to: 4.7
+Stable Tag: 1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-goEmerchant Payment Gateway Plugin for WooCommerce allows merchants to accept credit cards through their WooCommerce store and provides support for storing customer information, refunds, subscriptions, and more.
+Accept credit cards through your WooCommerce store. Supports customer information management, refunds, subscriptions, and more.
 
 == Description ==
 
@@ -54,3 +55,7 @@ Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerch
 = 1.0.0 =
 
 * Initial Release
+
+= 1.1 =
+
+* Updated look and feel of credit card form

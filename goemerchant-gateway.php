@@ -3,7 +3,7 @@
 Plugin Name: GoEmerchant Gateway for WooCommerce
 Plugin URI: http://goemerchant.com
 Description: Plugin for processing WooCommerce transactions through the goEmerchant gateway.
-Version: 1.0
+Version: 1.1
 Author: Kevin DeMoura
 Author URI: http://goemerchant.com
 */

@@ -3,20 +3,16 @@ require_once 'invalidinputexception_goe.php';
 // don't call the file directly
 defined( 'ABSPATH' ) or die();
 
-function check($string, $to = 'kevin.demoura@goemerchant.com', $subject = 'PHP Debug') {
-    mail($to, $subject, $string);
-}
-
 /**
  * Container for URLs used.
  */
 class URLPaths_goe
 {
-	const URL_API = "https://secure.goemerchant.com/secure/RestGW/Gateway/Transaction/";
-	const URL_API_VALIDATION = 'https://secure-v.goemerchant.com/secure/RestGW/Gateway/Transaction/';
-        const URL_TRANS_CENTER_SUPPORT = 'http://support.goemerchant.com/transaction-center.aspx';
-        const URL_GATEWAY_OPTIONS_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options";
-        const URL_SUBMIT_CC_BATCH_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch";
+    const URL_API = "https://secure.goemerchant.com/secure/RestGW/Gateway/Transaction/";
+    const URL_API_VALIDATION = 'https://secure-v.goemerchant.com/secure/RestGW/Gateway/Transaction/';
+    const URL_TRANS_CENTER_SUPPORT = 'http://support.goemerchant.com/transaction-center.aspx';
+    const URL_GATEWAY_OPTIONS_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options";
+    const URL_SUBMIT_CC_BATCH_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch";
 }
 
 /**
@@ -931,11 +927,13 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                         esc_attr__( 'CVC', 'woocommerce' ) . '" ' . $this->field_name( 'card-cvc-saved' ) . 
                         ' style="width:100px" disabled/></p>' : "";
                 
+                $checkbox = '<input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" style="vertical-align: middle" type="checkbox" name="' . $this->id . '-save-card' . '"/><label for="' . esc_attr($this->id) . '-save-card" >' . __("Save card to My Account?", 'wc-' . $this->id) . ' </label><br>';
+                
             if ($this->get_option('auto-renew') == 'yes') {// show message if subscriptions & auto-renew is on
-                $sub_msg = "<br><br><br><br>" . Goe_messages::MSG_AUTO_RENEW . "<br><br><br>";
+                $sub_msg = "<br><br><br><br>{$checkbox}" . Goe_messages::MSG_AUTO_RENEW . "<br><br><br>";
             }
             else {
-                $sub_msg = '<br><br><br><br><input id="' . esc_attr($this->id) . '-save-card" class="input-text wc-credit-card-form-save-card" style="vertical-align: middle" type="checkbox" name="' . $this->id . '-save-card' . '"/><label for="' . esc_attr($this->id) . '-save-card" >' . __("Save card to My Account?", 'wc-' . $this->id) . ' </label><br><br><br></p>';
+                $sub_msg = "<br><br><br><br>{$checkbox}<br><br><br></p>";
             }
 
             array_push(
