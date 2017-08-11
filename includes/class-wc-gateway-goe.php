@@ -323,7 +323,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             
             $cust_info = array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
-                'ipAddress'    => get_ip_address(),
+                'ipAddress'    => $this->get_ip_address(),
                 'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
@@ -468,7 +468,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'redirect' => $this->get_return_url($order)
             );
         } else { // we shouldn't ever make it this far, but just in case, bail out
-            wc_add_notice(Goe_messages::ERR_PROBLEM_PROCESSING + "IPAddress: " + get_ip_address(), "error");
+            wc_add_notice(Goe_messages::ERR_PROBLEM_PROCESSING, "error");
             return;
         }
     }
@@ -700,7 +700,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     function get_customer_billing() {
         return array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
-                'ipAddress'    => get_ip_address(),
+                'ipAddress'    => $this->get_ip_address(),
                 'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
@@ -1082,7 +1082,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             return $vaultId;
         }
     }
-    
+
     function get_delete_card_id() {
         $vaultId = sanitize_text_field( $_POST[$this->id . "-delete-card"] );
         if (ctype_digit($vaultId)) {
@@ -1095,7 +1095,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
     function get_ip_address() {
         $ipAddress = WC_Geolocation::get_ip_address();
-        if ($ipAddress === "::1" || $ipAddress === "localhost") {
+        if ($ipAddress === "::1" || $ipAddress === "localhost") { // goE will complain at these IPs, don't pass them
             $ipAddress = "";
         }
         return $ipAddress;
