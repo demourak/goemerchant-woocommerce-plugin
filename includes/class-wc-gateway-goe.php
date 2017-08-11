@@ -387,7 +387,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             // Set order ID to match woocommerce order number
             'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
             // Set IP Address for fraud screening
-            'ipAddress'         => get_ip_address(),
+            'ipAddress'         => $this->get_ip_address(),
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
             'ownerCountry'      => $order->billing_country,
