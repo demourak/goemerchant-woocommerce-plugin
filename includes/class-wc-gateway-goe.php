@@ -1098,6 +1098,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($ipAddress === "::1" || $ipAddress === "localhost") {
             $ipAddress = "";
         }
+        echo $ipAddress;
         return $ipAddress;
     }
     
