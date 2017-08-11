@@ -35,7 +35,7 @@ Accept credit cards through your WooCommerce store. Supports customer informatio
 2. Search for "goEmerchant Payment Gateway for WooCommerce" and click "Install Now"
 3. Activate the plugin from the Plugins page.
 
-= Manual Installation =
+= Manual Installation = 
 
 1. Download the plugin's zip folder. 
 2. On your WordPress dashboard side menu, navigate to Plugins --> Add New.
