@@ -468,7 +468,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'redirect' => $this->get_return_url($order)
             );
         } else { // we shouldn't ever make it this far, but just in case, bail out
-            wc_add_notice(Goe_messages::ERR_PROBLEM_PROCESSING, "error");
+            wc_add_notice(Goe_messages::ERR_PROBLEM_PROCESSING + "IPAddress: " + get_ip_address(), "error");
             return;
         }
     }
@@ -1098,7 +1098,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         if ($ipAddress === "::1" || $ipAddress === "localhost") {
             $ipAddress = "";
         }
-        echo "IP: " + $ipAddress;
         return $ipAddress;
     }
     
