@@ -59,3 +59,8 @@ Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerch
 = 1.1 =
 
 * Updated look and feel of credit card form
+
+= 1.2 =
+
+* Fixed issue that was preventing transactions from processing on a local server
+* Changed the default vault and order ID prefix to blank

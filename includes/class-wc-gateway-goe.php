@@ -324,7 +324,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             $cust_info = array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
                 'ipAddress'    => $this->get_ip_address(),
-                'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
+                'ownerName'    => $order->get_formatted_billing_full_name(),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
                 'ownerState'   => get_user_meta(get_current_user_id(), "billing_state", true),
@@ -701,7 +701,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         return array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
                 'ipAddress'    => $this->get_ip_address(),
-                'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
+                'ownerName'    => $order->get_formatted_billing_full_name(),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
                 'ownerState'   => get_user_meta(get_current_user_id(), "billing_state", true),
