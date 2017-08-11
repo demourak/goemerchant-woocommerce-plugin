@@ -11,7 +11,7 @@ Accept credit cards through your WooCommerce store. Supports customer informatio
 
 == Description ==
 
-= Features =
+= Features = 
 
 * Supports automatic refunds from the WordPress Dashboard
 * Customers can save credit card information to use for future orders
