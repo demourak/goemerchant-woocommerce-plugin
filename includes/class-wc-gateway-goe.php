@@ -68,13 +68,13 @@ class Goe_messages
     const LABEL_AUTH_ONLY = "If enabled, you must manually submit transactions for settlement in your Transaction Center in order to capture the funds. Visit our <a href='http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch'>support page</a> for a walkthrough of settling transactions.";
     const TITLE_AUTH_ONLY = "Authorize Only";
     
-    const DEFAULT_VAULT_KEY_PREFIX = 'WC-CUST-';
+    const DEFAULT_VAULT_KEY_PREFIX = '';
     const DESC_VAULT_KEY_PREFIX = "A vault key is created when a user saves a payment method to your site for future use. This prefix will be prepended to the user ID number to create a unique vault key, viewable in the Transaction Center. <b>Updating this option will disable your users' current saved payment methods.</b>";
     const TITLE_VAULT_KEY_PREFIX = 'Vault Key Prefix';
     
     const DESC_ORDER_PREFIX = "Text to prepend to the WooCommerce order number. Can be used to distinguish orders from different WooCommerce sites processing through the same goEmerchant account. Only visible within the Transaction Center.";
     const TITLE_ORDER_PREFIX = "Order Number Prefix";
-    const DEFAULT_ORDER_PREFIX = 'WC-ORDER-';
+    const DEFAULT_ORDER_PREFIX = '';
     
 }
 
