@@ -320,9 +320,10 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'redirect' => $this->get_return_url($subscription)
             );
         } else {
+            
             $cust_info = array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
-                'ipAddress'    => WC_Geolocation::get_ip_address(),
+                'ipAddress'    => get_ip_address(),
                 'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
@@ -386,7 +387,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             // Set order ID to match woocommerce order number
             'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
             // Set IP Address for fraud screening
-            'ipAddress'         => WC_Geolocation::get_ip_address(),
+            'ipAddress'         => get_ip_address(),
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
             'ownerCountry'      => $order->billing_country,
@@ -699,7 +700,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
     function get_customer_billing() {
         return array(// if entering a new card, grab default billing address info
                 // Set IP Address for fraud screening
-                'ipAddress'    => WC_Geolocation::get_ip_address(),
+                'ipAddress'    => get_ip_address(),
                 'ownerName'    => get_user_meta(get_current_user_id(), "billing_first_name", true) . " " . get_user_meta(get_current_user_id(), "billing_last_name", true),
                 'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
                 'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
@@ -1090,6 +1091,14 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         else {
             throw new InvalidInputException_goe(Goe_messages::ERR_CARD_DELETE_INVALID);
         }
+    }
+
+    function get_ip_address() {
+        $ipAddress = WC_Geolocation::get_ip_address();
+        if ($ipAddress === "::1" || $ipAddress === "localhost") {
+            $ipAddress = "";
+        }
+        return $ipAddress;
     }
     
     /**
