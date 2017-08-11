@@ -1,4 +1,4 @@
-=== goEmerchant Payment Gateway Plugin for WooCommerce ===
+=== goEmerchant Payment Gateway Plugin for WooCommerce === 
 Contributors: demourak
 Tags: goemerchant, gateway, woocommerce, plugin, processing, payment, credit card, merchant, checkout
 Requires at least: 4.5.3
