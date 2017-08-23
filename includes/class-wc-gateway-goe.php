@@ -597,7 +597,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $unable = "Unable to save credit card: ";
         if ($result["isError"] == TRUE) {
             foreach ($result["errorMessages"] as $index => $err) {
-                if ($err == "Credit card account already exists") {
+                if ( strpos($err, "Credit card account already exists") == FALSE ) {
                     if (is_account_page()) {
                         wc_print_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'notice');
                     } elseif($isPaymentChange) {
