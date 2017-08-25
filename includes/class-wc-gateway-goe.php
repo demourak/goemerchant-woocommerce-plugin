@@ -82,7 +82,7 @@ class Goe_messages
  * goEmerchant Gateway
  *
  * @author Kevin DeMoura
- * @version 1.0.0
+ * @version 1.2.0
  */
 class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
