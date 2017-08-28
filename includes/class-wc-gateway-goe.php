@@ -16,7 +16,7 @@ class URLPaths_goe
 }
 
 /**
- * Container for front-end messages.
+ * Container for front-end messages. 
  */
 class Goe_messages
 {
