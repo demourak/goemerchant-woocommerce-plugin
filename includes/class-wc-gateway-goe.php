@@ -304,6 +304,20 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
 
+    function get_customer_billing_checkout() {
+        return array (
+            'ownerName'         => $order->get_formatted_billing_full_name(),
+            'ownerCity'         => $order->billing_city,
+            'ownerCountry'      => $order->billing_country,
+            'ownerState'        => $order->billing_state,
+            'ownerStreet'       => $order->billing_address_1,
+            'ownerStreet2'      => $order->billing_address_2,
+            'ownerZip'          => $order->billing_postcode,
+            'ownerEmail'        => $order->billing_email,
+            'ownerPhone'        => $order->billing_phone
+        )
+    }
+
     /**
      * For customer to change payment method of existing subscription
      * @param boolean $useSavedCard true if the customer has selected "Use Existing Card"
@@ -320,23 +334,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'redirect' => $this->get_return_url($subscription)
             );
         } else {
-            
-            $cust_info = array(// if entering a new card, grab default billing address info
-                // Set IP Address for fraud screening
-                'ipAddress'    => $this->get_ip_address(),
-                'ownerName'    => $order->get_formatted_billing_full_name(),
-                'ownerCity'    => get_user_meta(get_current_user_id(), "billing_city", true),
-                'ownerCountry' => get_user_meta(get_current_user_id(), "billing_country", true),
-                'ownerState'   => get_user_meta(get_current_user_id(), "billing_state", true),
-                'ownerStreet'  => get_user_meta(get_current_user_id(), "billing_address_1", true),
-                'ownerStreet2' => get_user_meta(get_current_user_id(), "billing_address_2", true),
-                'ownerZip'     => get_user_meta(get_current_user_id(), "billing_postcode", true)
-            );
 
             $requestData = array_merge(
-                    $this->get_merchant_info(), $cust_info, $this->get_cc(), array(
+                    $this->get_merchant_info(), 
+                    $this->get_customer_billing(), 
+                    $this->get_cc(), 
+                    array (
                         'vaultKey' => get_post_meta($subscription->id, 'vault_key', true)
-                        ));
+                        )
+                    );
             $newVaultId = $this->save_cc_to_vault($requestData, new RestGateway(), true);
             if ($newVaultId) {
                 update_post_meta(
@@ -383,24 +389,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
         
         // get customer billing information from WC
-        $cust_info = array(
+        $cust_txn_info = array(
             // Set order ID to match woocommerce order number
             'orderId' => $this->get_option('order-prefix') . $order->get_order_number(),
             // Set IP Address for fraud screening
             'ipAddress'         => $this->get_ip_address(),
-            'ownerName'         => $order->get_formatted_billing_full_name(),
-            'ownerCity'         => $order->billing_city,
-            'ownerCountry'      => $order->billing_country,
-            'ownerState'        => $order->billing_state,
-            'ownerStreet'       => $order->billing_address_1,
-            'ownerStreet2'      => $order->billing_address_2,
-            'ownerZip'          => $order->billing_postcode,
-            'ownerEmail'        => $order->billing_email,
-            'ownerPhone'        => $order->billing_phone,
             'transactionAmount' => $order->get_total()
         );
 
-        $transactionData = array_merge($this->get_merchant_info(), $cust_info);
+        $transactionData = array_merge($this->get_merchant_info(), $cust_txn_info, $this->get_customer_billing_checkout());
         $vaultId = "";
         //process saved or new card based on input
         if ($useSavedCard) {
@@ -418,6 +415,15 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             }
         } else {
             $saleTransactionData = array_merge($transactionData, $this->get_cc());
+
+            if ($saveCard) {
+                $vaultAddCCInput = array_merge($saleTransactionData, $this->get_vault_key());
+                $vaultId = $this->save_cc_to_vault($vaultData, new RestGateway());
+                if (!$vaultId) {
+                    $order->update_status('failed');
+                    return;
+                }
+            }
 
             if ($authOnly) {
                 $rgw->createAuth($saleTransactionData);
@@ -442,10 +448,6 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             wc_add_notice(Goe_messages::MSG_AUTH_APPROVED, 'success');
             $order->add_order_note(Goe_messages::MSG_AUTH_APPROVED);
 
-            if ($saveCard && !$useSavedCard) {
-                $vaultData = array_merge($vaultData, $this->get_vault_key());
-                $vaultId = $this->save_cc_to_vault($vaultData, new RestGateway());
-            }
             if (class_exists('WC_Subscription') && wcs_order_contains_subscription($order)) {
                 $subscriptions = wcs_get_subscriptions_for_order($order); // only one subscription allowed per order
                 update_post_meta(
@@ -493,7 +495,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'vaultKey' => get_post_meta($subscriptionId, 'vault_key', true),
             'transactionAmount' => $totalAmount
         );
-        $transactionData = array_merge($transactionData,  $this->get_merchant_info());
+        $transactionData = array_merge($transactionData, $this->get_merchant_info());
         $rgw = new RestGateway();
         
         if ($this->get_option('auth-only') == 'yes') {
@@ -597,14 +599,12 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $unable = "Unable to save credit card: ";
         if ($result["isError"] == TRUE) {
             foreach ($result["errorMessages"] as $index => $err) {
-                if ( strpos($err, "Credit card account already exists") == FALSE ) {
+                if ( strpos($err, "Credit card account already exists") ) {
                     if (is_account_page()) {
-                        wc_print_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'notice');
-                    } elseif($isPaymentChange) {
-                        wc_add_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'error');
+                        wc_print_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'error');
                     }
                     else {
-                        wc_add_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'notice');
+                        wc_add_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'error');
                     }
                 } else {
                     if (is_account_page()) {
