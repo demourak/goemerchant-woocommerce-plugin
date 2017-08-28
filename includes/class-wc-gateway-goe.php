@@ -418,7 +418,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
 
             if ($saveCard) {
                 $vaultAddCCInput = array_merge($saleTransactionData, $this->get_vault_key());
-                $vaultId = $this->save_cc_to_vault($vaultData, new RestGateway());
+                $vaultId = $this->save_cc_to_vault($vaultAddCCInput, new RestGateway());
                 if (!$vaultId) {
                     $order->update_status('failed');
                     return;
