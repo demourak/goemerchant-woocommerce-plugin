@@ -25,7 +25,7 @@ class Goe_messages
     
     const MSG_AUTH_APPROVED = "Your payment has been approved and is being processed.";
     const DESC_METHOD = "Process transactions using the goEmerchant gateway. Click <a href='http://support.goemerchant.com/transaction-center.aspx'>here</a> to visit our support page for details on viewing transaction history, issuing refunds, and more.";
-    const MSG_CARD_ALREADY_EXISTS = "Your payment method was not saved because a card with that number already exists. Select a saved card or update card on the My Account page.";
+    const MSG_CARD_ALREADY_EXISTS = "A payment method with that account number already exists. Select a saved payment method or update the record on the My Account page.";
     const MSG_PAYMENT_METHOD_SAVED = "Payment method saved.";
     const MSG_AUTO_RENEW = "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.";
     const ERR_CARD_NUMBER_INVALID = "Credit card number is invalid.";
@@ -599,7 +599,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $unable = "Unable to save credit card: ";
         if ($result["isError"] == TRUE) {
             foreach ($result["errorMessages"] as $index => $err) {
-                if ( strpos($err, "Credit card account already exists") ) {
+                if ( strpos($err, "Credit card account already exists") !== false ) {
                     if (is_account_page()) {
                         wc_print_notice(Goe_messages::MSG_CARD_ALREADY_EXISTS, 'error');
                     }
