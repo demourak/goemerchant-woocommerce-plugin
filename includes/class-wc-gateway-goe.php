@@ -25,7 +25,7 @@ class Goe_messages
     
     const MSG_AUTH_APPROVED = "Your payment has been approved and is being processed.";
     const DESC_METHOD = "Process transactions using the goEmerchant gateway. Click <a href='http://support.goemerchant.com/transaction-center.aspx'>here</a> to visit our support page for details on viewing transaction history, issuing refunds, and more.";
-    const MSG_CARD_ALREADY_EXISTS = "Your payment method was not saved because a card with that number already exists.";
+    const MSG_CARD_ALREADY_EXISTS = "Your payment method was not saved because a card with that number already exists. Select a saved card or update card on the My Account page.";
     const MSG_PAYMENT_METHOD_SAVED = "Payment method saved.";
     const MSG_AUTO_RENEW = "If order contains or is part of a subscription, your card will automatically be saved for renewal charges.";
     const ERR_CARD_NUMBER_INVALID = "Credit card number is invalid.";
