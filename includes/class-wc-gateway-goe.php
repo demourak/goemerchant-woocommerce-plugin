@@ -304,7 +304,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         }
     }
 
-    function get_customer_billing_checkout() {
+    function get_customer_billing_checkout($order) {
         return array (
             'ownerName'         => $order->get_formatted_billing_full_name(),
             'ownerCity'         => $order->billing_city,
@@ -315,7 +315,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'ownerZip'          => $order->billing_postcode,
             'ownerEmail'        => $order->billing_email,
             'ownerPhone'        => $order->billing_phone
-        )
+        );
     }
 
     /**
@@ -397,7 +397,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
             'transactionAmount' => $order->get_total()
         );
 
-        $transactionData = array_merge($this->get_merchant_info(), $cust_txn_info, $this->get_customer_billing_checkout());
+        $transactionData = array_merge($this->get_merchant_info(), $cust_txn_info, $this->get_customer_billing_checkout($order));
         $vaultId = "";
         //process saved or new card based on input
         if ($useSavedCard) {
