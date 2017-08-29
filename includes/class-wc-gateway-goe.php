@@ -80,7 +80,7 @@ class Goe_messages
 
 /**
  * goEmerchant Gateway
- *
+ * 
  * @author Kevin DeMoura
  * @version 1.2.0
  */
