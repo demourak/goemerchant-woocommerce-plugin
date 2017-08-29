@@ -61,7 +61,7 @@ class Goemerchant_Plugin {
      * @return void
      */
     function install() {
-        global $wpdb; // does not use wp database
+        global $wpdb;
     }
 }
 
