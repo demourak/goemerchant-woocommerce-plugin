@@ -15,7 +15,6 @@ defined( 'ABSPATH' ) or die();
  * WooCommerce - goEmerchant integration
  *
  * @author Kevin DeMoura
- * @version 1.1.1
  */
 class Goemerchant_Plugin {
 
