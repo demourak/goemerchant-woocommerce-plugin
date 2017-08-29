@@ -64,3 +64,4 @@ Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerch
 
 * Fixed issue that was preventing transactions from processing on a local server
 * Changed the default vault and order ID prefix to blank
+* Fixed issue that occured when attempting to save a card that already exists
