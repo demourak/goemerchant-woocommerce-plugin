@@ -25,7 +25,7 @@ Accept credit cards through your WooCommerce store. Supports customer informatio
 = Using the Plugin =
 
 * This plugin requires a goEmerchant merchant Account. Call 888-638-7867 for assistance.
-* Once installed, navigate to WooCommerce -> Settings -> Checkout -> goEmerchant, and enter your account information. Click "Save Settings".
+* Once installed, navigate to WooCommerce --> Settings --> Checkout --> goEmerchant, and enter your account information. Click "Save Settings".
 
 == Installation ==
 
