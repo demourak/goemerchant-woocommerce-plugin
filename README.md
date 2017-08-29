@@ -3,7 +3,7 @@ Contributors: demourak
 Tags: goemerchant, gateway, woocommerce, plugin, processing, payment, credit card, merchant, checkout
 Requires at least: 4.5.3
 Tested up to: 4.8.1
-Stable Tag: 1.2
+Stable Tag: 1.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -56,11 +56,11 @@ Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerch
 
 * Initial Release
 
-= 1.1 =
+= 1.1.0 =
 
 * Updated look and feel of credit card form
 
-= 1.2 =
+= 1.1.1 =
 
 * Fixed issue that was preventing transactions from processing on a local server
 * Changed the default vault and order ID prefix to blank
