@@ -45,7 +45,7 @@ Accept credit cards through your WooCommerce store. Supports customer informatio
 OR
 
 1. Download the plugin's zip folder. 
-2. Save the plugin folder to the `/wp-content/plugins/` directory
+2. Extract the plugin folder to the `/wp-content/plugins/` directory
 3. Activate the plugin through the 'Plugins' menu in WordPress.
 
 Configure gateway settings in WooCommerce --> Settings --> Checkout --> goEmerchant
