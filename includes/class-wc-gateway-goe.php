@@ -10,6 +10,7 @@ class URLPaths_goe
 {
     const URL_API = "https://secure.goemerchant.com/secure/RestGW/Gateway/Transaction/";
     const URL_API_VALIDATION = 'https://secure-v.goemerchant.com/secure/RestGW/Gateway/Transaction/';
+	const URL_REST_DEFAULT = 'https://secure.1stpaygateway.net/secure/RestGW/Gateway/Transaction/';
     const URL_TRANS_CENTER_SUPPORT = 'http://support.goemerchant.com/transaction-center.aspx';
     const URL_GATEWAY_OPTIONS_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=gateway-options";
     const URL_SUBMIT_CC_BATCH_SUPPORT = "http://support.goemerchant.com/transaction-center.aspx?article=submit-credit-card-batch";
@@ -47,6 +48,8 @@ class Goe_messages
     
     const TITLE_SANDBOX = "Enable Sandbox/Validation";
     const LABEL_SANDBOX = "Configure this plugin to process to a validation environment (secure-v.goemerchant.com).";
+	const TITLE_DEFAULT_REST_URL = "Reset to Default REST url";
+	const LABEL_DEFAULT_REST_URL = "Configure and set the REST url that will be used to process transactions. If unsure, set this field to https://secure.1stpaygateway.net/secure/RestGW/Gateway/Transaction/";
     const TITLE_ENABLED = "Enable/Disable";
     const LABEL_ENABLED = 'Enable goEmerchant plugin';
     
@@ -121,7 +124,7 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
         $this->title              = empty( $title ) ? __(Goe_messages::WC_GATEWAY_TITLE, 'wc-goe' ) : $title;
         $this->description        = $this->get_option( 'description' );
         $this->instructions       = $this->get_option( 'instructions', $this->description );
-        self::$apiURL             = $this->get_option( 'sandbox' ) == 'yes' ? URLPaths_goe::URL_API_VALIDATION : URLPaths_goe::URL_API;
+        self::$apiURL             = $this->get_option( 'resturl' );
 
         //register hooks
         add_action( 'woocommerce_email_before_order_table', array( $this, 'email_instructions' ), 10, 3 );
@@ -153,11 +156,11 @@ class WC_Gateway_goe extends WC_Payment_Gateway_CC {
                 'label' => __(Goe_messages::LABEL_ENABLED, 'wc-goe'),
                 'default' => 'no'
             ),
-            'sandbox' => array(
-                'title' => __(Goe_messages::TITLE_SANDBOX, 'wc-goe'),
-                'type' => 'checkbox',
-                'label' => __(Goe_messages::LABEL_SANDBOX, 'wc-goe'),
-                'default' => 'no'
+            'resturl' => array(
+                'title' => __(Goe_messages::TITLE_DEFAULT_REST_URL, 'wc-goe'),
+                'type' => 'text',
+                'label' => __(Goe_messages::LABEL_DEFAULT_REST_URL, 'wc-goe'),
+                'default' => URLPaths_goe::URL_REST_DEFAULT;
         ));
         if (class_exists("WC_Subscription")) {
             $this->form_fields['auto-renew'] = array(
